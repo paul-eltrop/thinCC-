@@ -48,8 +48,15 @@ Regeln:
 - Bei Luecken konkret benennen was fehlt
 - Empfehlung "Bewerben mit Zusatz-Input" wenn Score zwischen 40-70%"""
 
+FIT_CHECK_USER_PROMPT = """Ausschreibung:
+{{ tender }}
+
+Zusaetzliche Informationen vom Nutzer:
+{{ extra_user_prompt }}"""
+
 
 def derive_doc_type(file_path: str) -> str:
+    """Leitet den Dokumenttyp aus dem Ordnernamen ab (z.B. docs/cvs/ -> cvs)."""
     parts = Path(file_path).parts
     for part in parts:
         if part in DOC_TYPE_FOLDERS:
@@ -58,6 +65,7 @@ def derive_doc_type(file_path: str) -> str:
 
 
 def build_indexing_pipeline() -> Pipeline:
+    """Baut die Haystack Pipeline: Docling Parsing/Chunking -> Gemini Embedding -> Qdrant Writer."""
     pipeline = Pipeline()
 
     pipeline.add_component(
@@ -85,6 +93,8 @@ def build_indexing_pipeline() -> Pipeline:
 
 
 def index_documents(paths: list[str]) -> dict:
+    """Nimmt Dateipfade, parst/chunked/embedded sie und speichert alles in Qdrant."""
+    """speicher pdfs in RAG"""
     pipeline = build_indexing_pipeline()
 
     for path in paths:
@@ -97,6 +107,7 @@ def index_documents(paths: list[str]) -> dict:
 
 
 def build_query_pipeline() -> Pipeline:
+    """Baut die Retrieval Pipeline: Query embedden -> Top-K Chunks aus Qdrant (Score >= 0.75)."""
     pipeline = Pipeline()
 
     pipeline.add_component(
@@ -118,6 +129,8 @@ def build_query_pipeline() -> Pipeline:
 
 
 def retrieve(question: str, filters: dict = None) -> list[Document]:
+    """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional mit Filter nach doc_type."""
+    """spreche mit PDFs"""
     pipeline = build_query_pipeline()
 
     retriever_params = {}
@@ -132,7 +145,8 @@ def retrieve(question: str, filters: dict = None) -> list[Document]:
     return result["retriever"]["documents"]
 
 
-def build_fit_check_pipeline() -> Pipeline:
+def build_fit_check_pipeline(system_prompt: str = FIT_CHECK_PROMPT) -> Pipeline:
+    """Baut die Fit Check Pipeline: Query embedden -> Retrieval -> Prompt mit Chunks -> GPT-4o Analyse."""
     pipeline = Pipeline()
 
     pipeline.add_component(
@@ -151,8 +165,8 @@ def build_fit_check_pipeline() -> Pipeline:
         "prompt_builder",
         ChatPromptBuilder(
             template=[
-                ChatMessage.from_system(FIT_CHECK_PROMPT),
-                ChatMessage.from_user("Erstelle die Fit-Analyse."),
+                ChatMessage.from_system(system_prompt),
+                ChatMessage.from_user(FIT_CHECK_USER_PROMPT),
             ],
         ),
     )
@@ -169,6 +183,7 @@ def build_fit_check_pipeline() -> Pipeline:
 
 
 def parse_pdf(file_path: str) -> str:
+    """Parst eine PDF mit Docling und gibt den gesamten Text als String zurueck."""
     converter = DoclingConverter(
         chunker=HybridChunker(
             tokenizer=config.CHUNKER_TOKENIZER,
@@ -179,8 +194,14 @@ def parse_pdf(file_path: str) -> str:
     return "\n\n".join(doc.content for doc in result["documents"])
 
 
-def fit_check(tender: str, filters: dict = None) -> str:
-    pipeline = build_fit_check_pipeline()
+def fit_check(
+    tender: str,
+    extra_user_prompt: str = "",
+    filters: dict = None,
+    system_prompt: str = FIT_CHECK_PROMPT,
+) -> str:
+    """Nimmt Tender-Text, retrievet passende Chunks und laesst GPT-4o eine Fit-Analyse erstellen."""
+    pipeline = build_fit_check_pipeline(system_prompt=system_prompt)
 
     retriever_params = {}
     if filters:
@@ -189,7 +210,7 @@ def fit_check(tender: str, filters: dict = None) -> str:
     result = pipeline.run({
         "text_embedder": {"text": tender},
         "retriever": retriever_params,
-        "prompt_builder": {"tender": tender},
+        "prompt_builder": {"tender": tender, "extra_user_prompt": extra_user_prompt},
     })
 
     return result["llm"]["replies"][0].text
