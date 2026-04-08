@@ -1,0 +1,162 @@
+[
+  {
+    "id": "company_name",
+    "category": "company_basics",
+    "text": "Wie heisst das Unternehmen, in welcher Rechtsform und wo ist der Hauptsitz?",
+    "importance": "critical",
+    "related_doc_types": ["company_profile", "boilerplate"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "company_history",
+    "category": "company_basics",
+    "text": "Seit wann existiert das Unternehmen und was ist die Kernmission?",
+    "importance": "medium",
+    "related_doc_types": ["company_profile"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "team_size",
+    "category": "company_basics",
+    "text": "Wie viele Mitarbeitende sind im Unternehmen taetig (FTE)?",
+    "importance": "high",
+    "related_doc_types": ["company_profile", "boilerplate"],
+    "answer_format": "number"
+  },
+  {
+    "id": "core_services",
+    "category": "capabilities",
+    "text": "Welche Hauptdienstleistungen bietet das Unternehmen an?",
+    "importance": "critical",
+    "related_doc_types": ["company_profile", "methodology"],
+    "answer_format": "list"
+  },
+  {
+    "id": "tech_stack",
+    "category": "capabilities",
+    "text": "Welcher Technologie-Stack wird hauptsaechlich genutzt (Programmiersprachen, Frameworks, Cloud-Provider)?",
+    "importance": "high",
+    "related_doc_types": ["company_profile", "methodology", "cv"],
+    "answer_format": "list"
+  },
+  {
+    "id": "industry_focus",
+    "category": "capabilities",
+    "text": "In welchen Branchen ist das Unternehmen am staerksten positioniert?",
+    "importance": "high",
+    "related_doc_types": ["company_profile", "reference_project"],
+    "answer_format": "list"
+  },
+  {
+    "id": "methodologies",
+    "category": "capabilities",
+    "text": "Welche Methodiken oder Frameworks werden in Projekten standardmaessig eingesetzt?",
+    "importance": "high",
+    "related_doc_types": ["methodology", "company_profile"],
+    "answer_format": "long_text"
+  },
+  {
+    "id": "senior_specialists",
+    "category": "team",
+    "text": "Welche Senior-Spezialisten gibt es im Team und in welchen Bereichen sind sie taetig?",
+    "importance": "high",
+    "related_doc_types": ["cv", "company_profile"],
+    "answer_format": "long_text"
+  },
+  {
+    "id": "team_certifications",
+    "category": "team",
+    "text": "Welche relevanten Zertifizierungen halten Teammitglieder (z.B. AWS, Azure, PMP, Scrum, CISSP)?",
+    "importance": "medium",
+    "related_doc_types": ["cv", "boilerplate"],
+    "answer_format": "list"
+  },
+  {
+    "id": "languages_spoken",
+    "category": "team",
+    "text": "Welche Arbeitssprachen werden im Team beherrscht und auf welchem Niveau?",
+    "importance": "medium",
+    "related_doc_types": ["cv", "company_profile"],
+    "answer_format": "list"
+  },
+  {
+    "id": "flagship_projects",
+    "category": "references",
+    "text": "Was sind die drei wichtigsten oder groessten Referenzprojekte der letzten drei Jahre?",
+    "importance": "critical",
+    "related_doc_types": ["reference_project", "company_profile"],
+    "answer_format": "long_text"
+  },
+  {
+    "id": "eu_public_sector_refs",
+    "category": "references",
+    "text": "Gibt es Referenzprojekte aus dem EU-Public-Sector (Kommission, Agenturen, Bundesministerien)? Falls ja, welche?",
+    "importance": "high",
+    "related_doc_types": ["reference_project"],
+    "answer_format": "list"
+  },
+  {
+    "id": "project_value_range",
+    "category": "references",
+    "text": "In welchem Volumen bewegen sich typische Projekte des Unternehmens (Auftragswert von-bis in EUR)?",
+    "importance": "medium",
+    "related_doc_types": ["reference_project", "company_profile"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "iso_27001",
+    "category": "compliance",
+    "text": "Habt ihr eine ISO 27001 Zertifizierung? Falls ja, seit wann und gueltig bis wann?",
+    "importance": "high",
+    "related_doc_types": ["boilerplate", "company_profile"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "iso_9001",
+    "category": "compliance",
+    "text": "Habt ihr eine ISO 9001 Zertifizierung fuer Qualitaetsmanagement?",
+    "importance": "medium",
+    "related_doc_types": ["boilerplate", "company_profile"],
+    "answer_format": "yes_no"
+  },
+  {
+    "id": "gdpr_compliance",
+    "category": "compliance",
+    "text": "Wie wird DSGVO-Compliance im Unternehmen sichergestellt? Gibt es einen Datenschutzbeauftragten?",
+    "importance": "high",
+    "related_doc_types": ["boilerplate", "methodology"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "nis2_dora_readiness",
+    "category": "compliance",
+    "text": "Sind NIS2 oder DORA Compliance-Anforderungen fuer eure Projekte relevant und werden sie erfuellt?",
+    "importance": "medium",
+    "related_doc_types": ["boilerplate", "methodology"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "annual_turnover",
+    "category": "financials",
+    "text": "Wie hoch war der Jahresumsatz der letzten drei Geschaeftsjahre?",
+    "importance": "high",
+    "related_doc_types": ["company_profile", "boilerplate"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "liability_insurance",
+    "category": "financials",
+    "text": "Besteht eine Berufs- oder Betriebshaftpflichtversicherung? Mit welcher Deckungssumme?",
+    "importance": "high",
+    "related_doc_types": ["boilerplate"],
+    "answer_format": "short_text"
+  },
+  {
+    "id": "financial_solvency",
+    "category": "financials",
+    "text": "Gibt es aktuelle Bonitaetsnachweise, Banken-Referenzen oder Wirtschaftsauskuenfte die fuer Tender vorgelegt werden koennen?",
+    "importance": "medium",
+    "related_doc_types": ["boilerplate"],
+    "answer_format": "yes_no"
+  }
+]
