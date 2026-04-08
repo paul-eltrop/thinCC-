@@ -7,3 +7,4 @@ google-genai-haystack
 fastapi
 uvicorn[standard]
 python-multipart
+openai
