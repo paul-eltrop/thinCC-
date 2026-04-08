@@ -15,6 +15,7 @@ PAYLOAD_INDEXES = [
     {"field_name": "meta.doc_type", "field_schema": "text"},
     {"field_name": "meta.source_file", "field_schema": "keyword"},
     {"field_name": "meta.question_id", "field_schema": "keyword"},
+    {"field_name": "meta.company_id", "field_schema": "keyword"},
 ]
 
 if config.QDRANT_URL and config.QDRANT_API_KEY:

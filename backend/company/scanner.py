@@ -71,7 +71,7 @@ def _evaluate_chunks(question: Question, chunks: list) -> dict:
     }
 
 
-def scan_question(question: Question) -> QuestionState:
+def scan_question(question: Question, company_id: str) -> QuestionState:
     """Retrievet Chunks fuer die Frage und laesst Gemini bewerten ob abdeckbar."""
     filters = None
     if question.related_doc_types:
@@ -84,6 +84,7 @@ def scan_question(question: Question) -> QuestionState:
 
     chunks = retrieve(
         question.text,
+        company_id=company_id,
         filters=filters,
         top_k=SCAN_TOP_K,
         score_threshold=SCAN_SCORE_THRESHOLD,
@@ -111,6 +112,7 @@ def scan_question(question: Question) -> QuestionState:
 def scan_all_questions(
     questions: list[Question],
     existing_state: dict[str, QuestionState],
+    company_id: str,
 ) -> dict[str, QuestionState]:
     """Scannt alle Fragen sequenziell. User-gegebene Antworten werden NICHT
     ueberschrieben. Wenn eine einzelne Frage scheitert (LLM-Error trotz Retry),
@@ -125,7 +127,7 @@ def scan_all_questions(
             continue
 
         try:
-            updated[q.id] = scan_question(q)
+            updated[q.id] = scan_question(q, company_id)
         except Exception as err:
             updated[q.id] = QuestionState(
                 question_id=q.id,

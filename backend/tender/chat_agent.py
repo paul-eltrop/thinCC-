@@ -55,7 +55,7 @@ def _open_requirements(tender: Tender) -> list[Requirement]:
     return open_list
 
 
-def _gather_hints(requirement: Requirement) -> list[Document]:
+def _gather_hints(requirement: Requirement, company_id: str) -> list[Document]:
     filters = None
     if requirement.related_doc_types:
         allowed = list(requirement.related_doc_types) + ["qa_answer"]
@@ -67,6 +67,7 @@ def _gather_hints(requirement: Requirement) -> list[Document]:
 
     return retrieve(
         requirement.text,
+        company_id=company_id,
         filters=filters,
         top_k=CHAT_RETRIEVE_TOP_K,
         score_threshold=SCAN_SCORE_THRESHOLD,
@@ -127,7 +128,12 @@ Stelle jetzt die Frage zu dieser Anforderung in einem Satz, ggf. mit
 Verifikations-Hinweis falls oben Vorwissen steht."""
 
 
-def _persist_user_answer(tender: Tender, requirement_id: str, answer: str) -> None:
+def _persist_user_answer(
+    tender: Tender,
+    company_id: str,
+    requirement_id: str,
+    answer: str,
+) -> None:
     requirement = next((r for r in tender.requirements if r.id == requirement_id), None)
     if not requirement:
         return
@@ -142,15 +148,16 @@ def _persist_user_answer(tender: Tender, requirement_id: str, answer: str) -> No
         notes=None,
     )
     tender.ranking = compute_ranking(tender.requirements, tender.coverage)
-    save_tender(tender)
+    save_tender(tender, company_id)
 
 
 def prepare_turn(
+    company_id: str,
     tender_id: str,
     history: list[ChatMessage],
     current_requirement_id: Optional[str],
 ) -> tuple[Optional[Tender], TenderNextTurn]:
-    tender = load_tender(tender_id)
+    tender = load_tender(company_id, tender_id)
     if tender is None:
         return None, TenderNextTurn(
             current_requirement_id=None,
@@ -162,7 +169,7 @@ def prepare_turn(
     if current_requirement_id and history and history[-1].role == "user":
         answer = history[-1].content.strip()
         if answer:
-            _persist_user_answer(tender, current_requirement_id, answer)
+            _persist_user_answer(tender, company_id, current_requirement_id, answer)
 
     open_list = _open_requirements(tender)
     if not open_list:
@@ -174,7 +181,7 @@ def prepare_turn(
         )
 
     next_requirement = open_list[0]
-    hints = _gather_hints(next_requirement)
+    hints = _gather_hints(next_requirement, company_id)
     system_prompt = _build_system_prompt(tender, next_requirement, open_list, hints)
 
     return tender, TenderNextTurn(

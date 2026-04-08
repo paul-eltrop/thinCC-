@@ -46,7 +46,7 @@ def _format_chunks(chunks: list) -> str:
     )
 
 
-def _retrieve_for_requirement(requirement: Requirement) -> list:
+def _retrieve_for_requirement(requirement: Requirement, company_id: str) -> list:
     filters = None
     if requirement.related_doc_types:
         allowed = list(requirement.related_doc_types) + ["qa_answer"]
@@ -58,6 +58,7 @@ def _retrieve_for_requirement(requirement: Requirement) -> list:
 
     return retrieve(
         requirement.text,
+        company_id=company_id,
         filters=filters,
         top_k=SCAN_TOP_K,
         score_threshold=SCAN_SCORE_THRESHOLD,
@@ -87,8 +88,8 @@ def _evaluate(requirement: Requirement, chunks: list) -> dict:
     }
 
 
-def check_requirement(requirement: Requirement) -> RequirementCoverage:
-    chunks = _retrieve_for_requirement(requirement)
+def check_requirement(requirement: Requirement, company_id: str) -> RequirementCoverage:
+    chunks = _retrieve_for_requirement(requirement, company_id)
     evaluation = _evaluate(requirement, chunks)
 
     sources = [
@@ -109,6 +110,7 @@ def check_requirement(requirement: Requirement) -> RequirementCoverage:
 
 def scan_requirements(
     requirements: list[Requirement],
+    company_id: str,
     existing: dict[str, RequirementCoverage] | None = None,
 ) -> dict[str, RequirementCoverage]:
     """Scannt alle Requirements sequenziell. user_provided=True Eintraege werden
@@ -123,7 +125,7 @@ def scan_requirements(
             continue
 
         try:
-            result[req.id] = check_requirement(req)
+            result[req.id] = check_requirement(req, company_id)
         except Exception as err:
             result[req.id] = RequirementCoverage(
                 requirement_id=req.id,

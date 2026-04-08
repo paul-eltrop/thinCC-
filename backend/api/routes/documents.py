@@ -5,8 +5,9 @@
 from collections import Counter
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from auth import CurrentUser, current_user
 from classification import CLASSIFICATION_MODEL
 from pipeline import index_documents
 
@@ -16,18 +17,22 @@ UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
 
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)) -> dict:
+async def upload_document(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(current_user),
+) -> dict:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Nur PDF-Dateien werden akzeptiert.")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    target_path = UPLOAD_DIR / file.filename
+    company_dir = UPLOAD_DIR / user.company_id
+    company_dir.mkdir(parents=True, exist_ok=True)
+    target_path = company_dir / file.filename
 
     contents = await file.read()
     target_path.write_bytes(contents)
 
     try:
-        result = index_documents([str(target_path)])
+        result = index_documents([str(target_path)], company_id=user.company_id)
     except Exception as err:
         raise HTTPException(status_code=422, detail=f"Indexing fehlgeschlagen: {err}")
 

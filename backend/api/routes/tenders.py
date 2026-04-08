@@ -1,16 +1,17 @@
 # HTTP-Routen fuer Tender Fit-Check: Upload + synchroner Run, Liste,
 # Detail, Recheck, Loeschen, SSE-Chat zum Luecken-Schliessen, Promotion
-# am Chat-Ende.
+# am Chat-Ende. Alle Routes sind tenant-isoliert via current_user.
 
 import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from auth import CurrentUser, current_user
 from chat.agent import ChatMessage as AgentChatMessage
 from chat.llm import stream_chat
 from pipeline import parse_pdf
@@ -28,6 +29,7 @@ from tender.state import (
     now_iso,
     save_tender,
 )
+from tender.supabase_sync import delete_tender_row, upsert_tender_row
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
 
@@ -46,13 +48,17 @@ def _serialize_tender(tender: Tender) -> dict:
 
 
 @router.post("/upload")
-async def upload_tender(file: UploadFile = File(...)) -> dict:
+async def upload_tender(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(current_user),
+) -> dict:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Nur PDF-Dateien werden akzeptiert.")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    company_pdf_dir = UPLOAD_DIR / user.company_id
+    company_pdf_dir.mkdir(parents=True, exist_ok=True)
     tender_id = make_tender_id(file.filename)
-    target_path = UPLOAD_DIR / f"{tender_id}.pdf"
+    target_path = company_pdf_dir / f"{tender_id}.pdf"
 
     contents = await file.read()
     target_path.write_bytes(contents)
@@ -73,7 +79,7 @@ async def upload_tender(file: UploadFile = File(...)) -> dict:
     if not requirements:
         raise HTTPException(status_code=422, detail="Keine Anforderungen extrahiert.")
 
-    coverage = scan_requirements(requirements)
+    coverage = scan_requirements(requirements, user.company_id)
     ranking = compute_ranking(requirements, coverage)
 
     tender = Tender(
@@ -85,46 +91,62 @@ async def upload_tender(file: UploadFile = File(...)) -> dict:
         coverage=coverage,
         ranking=ranking,
     )
-    save_tender(tender)
+    save_tender(tender, user.company_id)
+    upsert_tender_row(tender, user.company_id)
 
     return _serialize_tender(tender)
 
 
 @router.get("")
-def get_tenders() -> dict:
-    summaries = list_tenders()
+def get_tenders(user: CurrentUser = Depends(current_user)) -> dict:
+    summaries = list_tenders(user.company_id)
     return {"count": len(summaries), "tenders": summaries}
 
 
 @router.get("/{tender_id}")
-def get_tender(tender_id: str) -> dict:
-    tender = load_tender(tender_id)
+def get_tender(
+    tender_id: str,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    tender = load_tender(user.company_id, tender_id)
     if tender is None:
         raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
     return _serialize_tender(tender)
 
 
 @router.post("/{tender_id}/recheck")
-def recheck_tender(tender_id: str) -> dict:
-    tender = load_tender(tender_id)
+def recheck_tender(
+    tender_id: str,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    tender = load_tender(user.company_id, tender_id)
     if tender is None:
         raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
 
-    tender.coverage = scan_requirements(tender.requirements, existing=tender.coverage)
+    tender.coverage = scan_requirements(
+        tender.requirements,
+        user.company_id,
+        existing=tender.coverage,
+    )
     tender.ranking = compute_ranking(tender.requirements, tender.coverage)
-    save_tender(tender)
+    save_tender(tender, user.company_id)
+    upsert_tender_row(tender, user.company_id)
     return _serialize_tender(tender)
 
 
 @router.delete("/{tender_id}")
-def delete_one(tender_id: str) -> dict:
-    if not delete_tender(tender_id):
+def delete_one(
+    tender_id: str,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    if not delete_tender(user.company_id, tender_id):
         raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
 
-    pdf_path = UPLOAD_DIR / f"{tender_id}.pdf"
+    pdf_path = UPLOAD_DIR / user.company_id / f"{tender_id}.pdf"
     if pdf_path.exists():
         pdf_path.unlink()
 
+    delete_tender_row(tender_id)
     return {"ok": True, "id": tender_id}
 
 
@@ -146,12 +168,23 @@ def _sse(event: str | None, data: dict) -> str:
 
 
 @router.post("/{tender_id}/chat/turn")
-def tender_chat_turn(tender_id: str, body: TenderChatTurnBody) -> StreamingResponse:
+def tender_chat_turn(
+    tender_id: str,
+    body: TenderChatTurnBody,
+    user: CurrentUser = Depends(current_user),
+) -> StreamingResponse:
     history = [AgentChatMessage(role=m.role, content=m.content) for m in body.messages]
-    tender, next_turn = prepare_turn(tender_id, history, body.current_requirement_id)
+    tender, next_turn = prepare_turn(
+        user.company_id,
+        tender_id,
+        history,
+        body.current_requirement_id,
+    )
 
     if tender is None:
         raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+
+    upsert_tender_row(tender, user.company_id)
 
     def event_stream():
         yield _sse(
@@ -185,13 +218,16 @@ def tender_chat_turn(tender_id: str, body: TenderChatTurnBody) -> StreamingRespo
 
 
 @router.post("/{tender_id}/chat/end")
-def tender_chat_end(tender_id: str) -> dict:
-    tender = load_tender(tender_id)
+def tender_chat_end(
+    tender_id: str,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    tender = load_tender(user.company_id, tender_id)
     if tender is None:
         raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
 
     try:
-        promoted = promote_answers(tender)
+        promoted = promote_answers(tender, user.company_id)
     except Exception as err:
         raise HTTPException(status_code=500, detail=f"Promotion fehlgeschlagen: {err}")
 

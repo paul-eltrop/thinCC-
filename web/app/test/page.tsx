@@ -6,8 +6,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE, apiFetch } from '@/lib/api';
 
 type QuestionState = {
   question_id: string;
@@ -186,7 +185,7 @@ function HealthCard() {
   async function check() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/health`);
+      const res = await apiFetch(`/health`);
       setData(await res.json());
     } catch (err) {
       setData({ error: String(err) });
@@ -217,7 +216,7 @@ function UploadCard() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${API_BASE}/documents/upload`, {
+      const res = await apiFetch(`/documents/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -259,7 +258,7 @@ function CompanyCard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/company/questions`);
+      const res = await apiFetch(`/company/questions`);
       const json = await res.json();
       setItems(json.questions || []);
     } catch (err) {
@@ -277,7 +276,7 @@ function CompanyCard() {
     setScanning(true);
     setError(null);
     try {
-      await fetch(`${API_BASE}/company/scan`, { method: 'POST' });
+      await apiFetch(`/company/scan`, { method: 'POST' });
       await load();
     } catch (err) {
       setError(String(err));
@@ -289,7 +288,7 @@ function CompanyCard() {
   async function scanOne(id: string) {
     setBusyId(id);
     try {
-      await fetch(`${API_BASE}/company/scan/${id}`, { method: 'POST' });
+      await apiFetch(`/company/scan/${id}`, { method: 'POST' });
       await load();
     } finally {
       setBusyId(null);
@@ -301,7 +300,7 @@ function CompanyCard() {
     if (!answer) return;
     setBusyId(id);
     try {
-      await fetch(`${API_BASE}/company/questions/${id}/answer`, {
+      await apiFetch(`/company/questions/${id}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answer }),
@@ -316,7 +315,7 @@ function CompanyCard() {
   async function deleteAnswer(id: string) {
     setBusyId(id);
     try {
-      await fetch(`${API_BASE}/company/questions/${id}/answer`, { method: 'DELETE' });
+      await apiFetch(`/company/questions/${id}/answer`, { method: 'DELETE' });
       await load();
     } finally {
       setBusyId(null);
@@ -417,7 +416,7 @@ function ChatCard() {
     abortRef.current = controller;
 
     try {
-      const res = await fetch(`${API_BASE}/company/chat/turn`, {
+      const res = await apiFetch(`/company/chat/turn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, current_question_id: questionId }),
@@ -632,7 +631,7 @@ function TenderCard() {
 
   async function loadList() {
     try {
-      const res = await fetch(`${API_BASE}/tenders`);
+      const res = await apiFetch(`/tenders`);
       const json = await res.json();
       setTenders(json.tenders || []);
     } catch (err) {
@@ -650,7 +649,7 @@ function TenderCard() {
     setError(null);
     resetChat();
     try {
-      const res = await fetch(`${API_BASE}/tenders/${id}`);
+      const res = await apiFetch(`/tenders/${id}`);
       const json = await res.json();
       setTender(json);
       setLiveScore(json.ranking?.score ?? null);
@@ -668,7 +667,7 @@ function TenderCard() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${API_BASE}/tenders/upload`, { method: 'POST', body: formData });
+      const res = await apiFetch(`/tenders/upload`, { method: 'POST', body: formData });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.detail || `HTTP ${res.status}`);
@@ -691,7 +690,7 @@ function TenderCard() {
     if (!selectedId) return;
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/tenders/${selectedId}/recheck`, { method: 'POST' });
+      const res = await apiFetch(`/tenders/${selectedId}/recheck`, { method: 'POST' });
       const json = await res.json();
       setTender(json);
       setLiveScore(json.ranking?.score ?? null);
@@ -704,7 +703,7 @@ function TenderCard() {
   async function deleteTender(id: string) {
     setBusy(true);
     try {
-      await fetch(`${API_BASE}/tenders/${id}`, { method: 'DELETE' });
+      await apiFetch(`/tenders/${id}`, { method: 'DELETE' });
       if (selectedId === id) {
         setSelectedId(null);
         setTender(null);
@@ -730,7 +729,7 @@ function TenderCard() {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE}/tenders/${selectedId}/chat/turn`, {
+      const res = await apiFetch(`/tenders/${selectedId}/chat/turn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, current_requirement_id: reqId }),
@@ -790,7 +789,7 @@ function TenderCard() {
     } finally {
       setChatStreaming(false);
       if (selectedId) {
-        const res = await fetch(`${API_BASE}/tenders/${selectedId}`);
+        const res = await apiFetch(`/tenders/${selectedId}`);
         if (res.ok) setTender(await res.json());
       }
     }
@@ -814,7 +813,7 @@ function TenderCard() {
     if (!selectedId) return;
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/tenders/${selectedId}/chat/end`, { method: 'POST' });
+      const res = await apiFetch(`/tenders/${selectedId}/chat/end`, { method: 'POST' });
       setPromoteResult(await res.json());
     } finally {
       setBusy(false);

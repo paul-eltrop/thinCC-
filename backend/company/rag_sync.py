@@ -14,8 +14,8 @@ from document_store import document_store
 QA_DOC_TYPE = "qa_answer"
 
 
-def qa_chunk_id(question_id: str) -> str:
-    return f"qa_{question_id}"
+def qa_chunk_id(company_id: str, question_id: str) -> str:
+    return f"qa_{company_id}_{question_id}"
 
 
 def _build_qa_pipeline() -> Pipeline:
@@ -32,16 +32,22 @@ def _build_qa_pipeline() -> Pipeline:
     return pipeline
 
 
-def write_qa_to_rag(question_id: str, question_text: str, answer: str) -> int:
+def write_qa_to_rag(
+    company_id: str,
+    question_id: str,
+    question_text: str,
+    answer: str,
+) -> int:
     """Schreibt eine User-Antwort als Document in Qdrant. Wenn die Question-ID
     schon einen Chunk hat, wird er ueberschrieben (deterministische ID + OVERWRITE)."""
     document = Document(
-        id=qa_chunk_id(question_id),
+        id=qa_chunk_id(company_id, question_id),
         content=f"Frage: {question_text}\nAntwort: {answer}",
         meta={
             "source_file": "company_qa",
             "doc_type": QA_DOC_TYPE,
             "question_id": question_id,
+            "company_id": company_id,
         },
     )
 
@@ -50,5 +56,5 @@ def write_qa_to_rag(question_id: str, question_text: str, answer: str) -> int:
     return result.get("writer", {}).get("documents_written", 0)
 
 
-def delete_qa_from_rag(question_id: str) -> None:
-    document_store.delete_documents([qa_chunk_id(question_id)])
+def delete_qa_from_rag(company_id: str, question_id: str) -> None:
+    document_store.delete_documents([qa_chunk_id(company_id, question_id)])
