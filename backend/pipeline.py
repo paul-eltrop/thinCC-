@@ -65,6 +65,15 @@ def derive_doc_type(file_path: str) -> str:
     return "unknown"
 
 
+def company_filter(company_id: str, extra_filters: dict | None = None) -> dict:
+    """Baut einen Qdrant-Filter der auf meta.company_id einschraenkt und optional
+    weitere Filter mit AND verknuepft."""
+    conditions = [{"field": "meta.company_id", "operator": "==", "value": company_id}]
+    if extra_filters:
+        conditions.append(extra_filters)
+    return {"operator": "AND", "conditions": conditions}
+
+
 def build_indexing_pipeline() -> Pipeline:
     """Baut die Haystack Pipeline: Docling -> per-Chunk Klassifikation -> Gemini Embedding -> Qdrant."""
     pipeline = Pipeline()
@@ -95,9 +104,10 @@ def build_indexing_pipeline() -> Pipeline:
     return pipeline
 
 
-def index_documents(paths: list[str]) -> dict:
+def index_documents(paths: list[str], company_id: str = "") -> dict:
     """Indexiert Dateien in Qdrant. Jeder Chunk wird einzeln per Gemini Flash
     klassifiziert und bekommt seinen eigenen doc_type in den Metadaten.
+    Wenn company_id gesetzt ist, wird sie in jedes Chunk-Meta geschrieben.
     Returnt die Anzahl geschriebener Chunks und die klassifizierten Documents."""
     pipeline = build_indexing_pipeline()
 
@@ -106,6 +116,8 @@ def index_documents(paths: list[str]) -> dict:
 
     for path in paths:
         meta = {"source_file": Path(path).name}
+        if company_id:
+            meta["company_id"] = company_id
         result = pipeline.run(
             {"converter": {"sources": [path], "meta": meta}},
             include_outputs_from={"classifier"},
@@ -148,19 +160,23 @@ def build_query_pipeline(
 
 def retrieve(
     question: str,
+    company_id: str = "",
     filters: dict | None = None,
     top_k: int | None = None,
     score_threshold: float | None = None,
 ) -> list[Document]:
     """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional
-    mit Filter nach doc_type, ueberschreibbarem top_k und score_threshold."""
+    mit Filter nach doc_type, company_id-Tenant-Isolation, ueberschreibbarem
+    top_k und score_threshold."""
     pipeline = build_query_pipeline(
         top_k=top_k if top_k is not None else config.TOP_K,
         score_threshold=score_threshold if score_threshold is not None else MIN_FIT_SCORE,
     )
 
     retriever_params = {}
-    if filters:
+    if company_id:
+        retriever_params["filters"] = company_filter(company_id, filters)
+    elif filters:
         retriever_params["filters"] = filters
 
     result = pipeline.run({
@@ -222,15 +238,19 @@ def parse_pdf(file_path: str) -> str:
 
 def fit_check(
     tender: str,
+    company_id: str = "",
     extra_user_prompt: str = "",
-    filters: dict = None,
+    filters: dict | None = None,
     system_prompt: str = FIT_CHECK_PROMPT,
 ) -> str:
-    """Nimmt Tender-Text, retrievet passende Chunks und laesst GPT-4o eine Fit-Analyse erstellen."""
+    """Nimmt Tender-Text, retrievet passende Chunks (optional gefiltert nach
+    company_id) und laesst GPT-4o eine Fit-Analyse erstellen."""
     pipeline = build_fit_check_pipeline(system_prompt=system_prompt)
 
     retriever_params = {}
-    if filters:
+    if company_id:
+        retriever_params["filters"] = company_filter(company_id, filters)
+    elif filters:
         retriever_params["filters"] = filters
 
     result = pipeline.run({
