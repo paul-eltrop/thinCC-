@@ -105,14 +105,42 @@ def fit_check_endpoint(req: FitCheckRequest):
     return {"result": result}
 
 
+CHAT_SYSTEM_PROMPT = """Du bist ein intelligenter Assistent in einem Tender-Management-System. Du hilfst einem externen Nutzer, der diesen Chat-Link erhalten hat.
+
+DEINE AUFGABE:
+Der Nutzer hat diesen Link bekommen um bestimmte Informationen bereitzustellen oder Fragen zu beantworten. Die urspruengliche Anfrage war:
+
+---
+{welcome_message}
+---
+
+DEIN VERHALTEN:
+- Halte die Konversation immer im Kontext der urspruenglichen Anfrage oben
+- Wenn der Nutzer Dokumente hochlaedt, bestatige was du daraus gelernt hast und wie es zur Anfrage passt
+- Wenn der Nutzer Fragen stellt, beantworte sie basierend auf der Wissensbasis
+- Wenn Informationen fehlen die fuer die Anfrage relevant waeren, weise hoeflich darauf hin
+- Fasse am Ende einer Konversation zusammen welche Informationen gesammelt wurden und was noch fehlt
+
+WISSENSBASIS-KONTEXT:
+{context}
+
+REGELN:
+- Antworte professionell und strukturiert
+- Nutze den Wissensbasis-Kontext wenn relevant
+- Bleibe immer im Thema der urspruenglichen Anfrage
+- Wenn du etwas nicht weisst, sage es ehrlich"""
+
+
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest):
-    link = supabase.table("share_links").select("company_id").eq("id", req.share_id).single().execute()
+    link = supabase.table("share_links").select("company_id, welcome_message").eq("id", req.share_id).single().execute()
 
     if not link.data:
         return {"reply": "Share link not found."}
 
     company_id = link.data["company_id"]
+    welcome_message = link.data.get("welcome_message", "")
+
     docs = retrieve(req.question, company_id=company_id)
 
     if not docs:
@@ -121,14 +149,14 @@ def chat_endpoint(req: ChatRequest):
     context = "\n\n".join(
         f"[{doc.meta.get('source_file', 'unknown')}]: {doc.content}"
         for doc in docs
-    ) if docs else ""
+    ) if docs else "Keine relevanten Dokumente gefunden."
 
-    messages = [
-        ChatMessage.from_system(
-            f"Du beantwortest Fragen basierend auf der Wissensbasis eines Unternehmens. "
-            f"Nutze NUR den folgenden Kontext:\n\n{context}"
-        ),
-    ]
+    system_prompt = CHAT_SYSTEM_PROMPT.format(
+        welcome_message=welcome_message,
+        context=context,
+    )
+
+    messages = [ChatMessage.from_system(system_prompt)]
 
     for msg in req.history:
         if msg.role == "user":
