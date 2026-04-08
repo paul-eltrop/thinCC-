@@ -8,19 +8,7 @@ from pathlib import Path
 import config
 from indexing_pipeline import build_indexing_pipeline, derive_doc_type
 
-SMOKE_DOC_PATH = Path("docs/smoke_test.md")
-SMOKE_CONTENT = """# Smoke Test Dokument
-
-Dieses Dokument prueft die Indexing Pipeline.
-Es enthaelt mehrere Saetze, damit Chunking sichtbar wird.
-Die Embeddings werden mit dem konfigurierten Modell erstellt.
-"""
-
-
-def ensure_smoke_doc() -> Path:
-    SMOKE_DOC_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SMOKE_DOC_PATH.write_text(SMOKE_CONTENT, encoding="utf-8")
-    return SMOKE_DOC_PATH
+SMOKE_DOC_PATH = Path("test.pdf")
 
 
 def main() -> int:
@@ -28,13 +16,16 @@ def main() -> int:
         print("Fehlende Umgebungsvariable: GOOGLE_API_KEY")
         return 1
 
-    smoke_doc = ensure_smoke_doc()
+    if not SMOKE_DOC_PATH.exists():
+        print(f"Datei {SMOKE_DOC_PATH} nicht gefunden.")
+        return 1
+
     pipeline = build_indexing_pipeline()
     output = pipeline.run(
         {
             "converter": {
-                "sources": [str(smoke_doc)],
-                "meta": {"source_file": smoke_doc.name, "doc_type": derive_doc_type(str(smoke_doc))},
+                "sources": [str(SMOKE_DOC_PATH)],
+                "meta": {"source_file": SMOKE_DOC_PATH.name, "doc_type": derive_doc_type(str(SMOKE_DOC_PATH))},
             }
         },
         include_outputs_from={"converter", "embedder", "writer"},
@@ -46,9 +37,15 @@ def main() -> int:
     embedding_dim = len(embedded_docs[0].embedding) if embedded_docs and embedded_docs[0].embedding else 0
 
     print("=== Pipeline Smoke Test ===")
-    print(f"Datei: {smoke_doc}")
+    print(f"Datei: {SMOKE_DOC_PATH}")
     print(f"Chunks erstellt: {len(converted_docs)}")
-    print(f"Chunks mit Embedding: {len(embedded_docs)}")
+
+    for i, doc in enumerate(converted_docs):
+        print(f"\n--- Chunk {i + 1} ---")
+        print(f"Content: {doc.content}")
+        print(f"Meta: {doc.meta}")
+
+    print(f"\nChunks mit Embedding: {len(embedded_docs)}")
     print(f"Embedding-Dimension (erstes Chunk): {embedding_dim}")
     print(f"In Qdrant geschrieben: {documents_written}")
 

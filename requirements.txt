@@ -1,4 +1,5 @@
 haystack-ai
+python-dotenv
 qdrant-haystack
 docling
 docling-haystack
