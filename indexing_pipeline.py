@@ -1,13 +1,12 @@
-# Pipeline zum Indexieren von Dokumenten in den Qdrant Store.
-# Nutzt Docling zum Parsen/Chunken und Gemini fuer Embeddings.
-# Leitet doc_type aus dem Ordnernamen der Quelldatei ab.
+# Pipeline zum Indexieren von Dokumenten in Qdrant.
+# Parst und chunked Dateien mit Docling, embedded mit Gemini
+# und schreibt die Chunks in den Qdrant Store.
 
 from pathlib import Path
 
 from docling.chunking import HybridChunker
 from docling_haystack.converter import DoclingConverter
 from haystack import Pipeline
-from haystack.components.preprocessors import DocumentCleaner
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder
 
@@ -32,7 +31,7 @@ def build_indexing_pipeline() -> Pipeline:
         "converter",
         DoclingConverter(
             chunker=HybridChunker(
-                tokenizer=config.EMBEDDING_MODEL,
+                tokenizer=config.CHUNKER_TOKENIZER,
                 max_tokens=config.CHUNKER_MAX_TOKENS,
             ),
         ),
