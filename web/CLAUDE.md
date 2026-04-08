@@ -7,7 +7,7 @@ aber professionell. Viel Licht, viel Luft, abgerundete Ecken überall, weiche
 Schatten, frosted glass cards. Alle neuen Pages müssen sich an dieses System
 halten. Keine Abweichungen ohne expliziten Anlass.
 
-Referenz-Implementierung: [src/app/page.tsx](src/app/page.tsx).
+Referenz-Implementierung: [app/page.tsx](app/page.tsx).
 
 ## Background
 
