@@ -3,21 +3,15 @@
 # Sequenziell, blockend — fuer ~20 Fragen rund 30-60 Sekunden.
 
 import json
-import time
 
-from google import genai
-from google.genai import errors as genai_errors
-
-import config
 from company.questions import Question
 from company.state import QuestionState, now_iso
+from llm_utils import call_gemini_json
 from pipeline import retrieve
 
 EVAL_MODEL = "gemini-2.5-flash"
 SCAN_SCORE_THRESHOLD = 0.5
 SCAN_TOP_K = 10
-MAX_LLM_RETRIES = 3
-RETRY_BASE_DELAY = 2.0
 
 EVAL_PROMPT = """Du bist ein Reviewer der prueft ob eine Frage anhand der gegebenen Quellen
 beantwortet werden kann.
@@ -53,27 +47,6 @@ def _format_chunks(chunks: list) -> str:
     )
 
 
-def _call_gemini_with_retry(client: genai.Client, prompt: str) -> str:
-    """Ruft Gemini auf mit exponential backoff bei transienten 5xx Fehlern."""
-    last_error = None
-    for attempt in range(MAX_LLM_RETRIES):
-        try:
-            response = client.models.generate_content(
-                model=EVAL_MODEL,
-                contents=prompt,
-                config={"response_mime_type": "application/json"},
-            )
-            return response.text
-        except genai_errors.ServerError as err:
-            last_error = err
-            if attempt < MAX_LLM_RETRIES - 1:
-                time.sleep(RETRY_BASE_DELAY * (2 ** attempt))
-                continue
-            raise
-
-    raise last_error
-
-
 def _evaluate_chunks(question: Question, chunks: list) -> dict:
     if not chunks:
         return {
@@ -83,13 +56,12 @@ def _evaluate_chunks(question: Question, chunks: list) -> dict:
             "notes": "Keine relevanten Chunks im RAG gefunden.",
         }
 
-    client = genai.Client(api_key=config.GOOGLE_API_KEY)
     prompt = EVAL_PROMPT.format(
         question=question.text,
         chunks=_format_chunks(chunks),
     )
 
-    raw_response = _call_gemini_with_retry(client, prompt)
+    raw_response = call_gemini_json(EVAL_MODEL, prompt)
     parsed = json.loads(raw_response)
     return {
         "status": parsed.get("status", "missing"),
