@@ -92,15 +92,18 @@ def build_indexing_pipeline() -> Pipeline:
     return pipeline
 
 
-def index_documents(paths: list[str]) -> dict:
-    """Nimmt Dateipfade, parst/chunked/embedded sie und speichert alles in Qdrant."""
-    """speicher pdfs in RAG"""
+def index_documents(paths: list[str], company_id: str = "") -> dict:
+    """Nimmt Dateipfade, parst/chunked/embedded sie und speichert alles in Qdrant mit company_id."""
     pipeline = build_indexing_pipeline()
 
     for path in paths:
         doc_type = derive_doc_type(path)
         result = pipeline.run(
-            {"converter": {"sources": [path], "meta": {"source_file": Path(path).name, "doc_type": doc_type}}}
+            {"converter": {"sources": [path], "meta": {
+                "source_file": Path(path).name,
+                "doc_type": doc_type,
+                "company_id": company_id,
+            }}}
         )
 
     return result
@@ -128,13 +131,21 @@ def build_query_pipeline() -> Pipeline:
     return pipeline
 
 
-def retrieve(question: str, filters: dict = None) -> list[Document]:
+def company_filter(company_id: str, extra_filters: dict = None) -> dict:
+    conditions = [{"field": "meta.company_id", "operator": "==", "value": company_id}]
+    if extra_filters:
+        conditions.append(extra_filters)
+    return {"operator": "AND", "conditions": conditions}
+
+
+def retrieve(question: str, company_id: str = "", filters: dict = None) -> list[Document]:
     """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional mit Filter nach doc_type."""
-    """spreche mit PDFs"""
     pipeline = build_query_pipeline()
 
     retriever_params = {}
-    if filters:
+    if company_id:
+        retriever_params["filters"] = company_filter(company_id, filters)
+    elif filters:
         retriever_params["filters"] = filters
 
     result = pipeline.run({
@@ -196,6 +207,7 @@ def parse_pdf(file_path: str) -> str:
 
 def fit_check(
     tender: str,
+    company_id: str = "",
     extra_user_prompt: str = "",
     filters: dict = None,
     system_prompt: str = FIT_CHECK_PROMPT,
@@ -204,7 +216,9 @@ def fit_check(
     pipeline = build_fit_check_pipeline(system_prompt=system_prompt)
 
     retriever_params = {}
-    if filters:
+    if company_id:
+        retriever_params["filters"] = company_filter(company_id, filters)
+    elif filters:
         retriever_params["filters"] = filters
 
     result = pipeline.run({
