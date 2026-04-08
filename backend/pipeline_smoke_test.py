@@ -3,10 +3,11 @@
 # und fuehrt einen Fit Check gegen eine Beispiel-Ausschreibung aus.
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 import config
-from pipeline import build_indexing_pipeline, derive_doc_type, retrieve, fit_check, parse_pdf
+from pipeline import index_documents, retrieve, fit_check, parse_pdf
 
 SMOKE_DOC_PATH = Path("test.pdf")
 
@@ -20,36 +21,25 @@ def main() -> int:
         print(f"Datei {SMOKE_DOC_PATH} nicht gefunden.")
         return 1
 
-    pipeline = build_indexing_pipeline()
-    output = pipeline.run(
-        {
-            "converter": {
-                "sources": [str(SMOKE_DOC_PATH)],
-                "meta": {"source_file": SMOKE_DOC_PATH.name, "doc_type": derive_doc_type(str(SMOKE_DOC_PATH))},
-            }
-        },
-        include_outputs_from={"converter", "embedder", "writer"},
-    )
-
-    converted_docs = output.get("converter", {}).get("documents", [])
-    embedded_docs = output.get("embedder", {}).get("documents", [])
-    documents_written = output.get("writer", {}).get("documents_written", 0)
-    embedding_dim = len(embedded_docs[0].embedding) if embedded_docs and embedded_docs[0].embedding else 0
-
     print("=== Pipeline Smoke Test ===")
     print(f"Datei: {SMOKE_DOC_PATH}")
-    print(f"Chunks erstellt: {len(converted_docs)}")
 
-    for i, doc in enumerate(converted_docs):
-        print(f"\n--- Chunk {i + 1} ---")
-        print(f"Content: {doc.content}")
-        print(f"Meta: {doc.meta}")
+    result = index_documents([str(SMOKE_DOC_PATH)])
+    classified_docs = result["classified_documents"]
+    documents_written = result["documents_written"]
 
-    print(f"\nChunks mit Embedding: {len(embedded_docs)}")
-    print(f"Embedding-Dimension (erstes Chunk): {embedding_dim}")
+    print(f"Chunks erstellt und klassifiziert: {len(classified_docs)}")
+    chunks_by_type = Counter(doc.meta.get("doc_type", "unknown") for doc in classified_docs)
+    print(f"Verteilung nach doc_type: {dict(chunks_by_type)}\n")
+
+    for i, doc in enumerate(classified_docs):
+        print(f"--- Chunk {i + 1} [{doc.meta.get('doc_type')}] ---")
+        print(f"Content: {doc.content[:200]}...")
+        print()
+
     print(f"In Qdrant geschrieben: {documents_written}")
 
-    if not converted_docs or not embedded_docs or documents_written == 0:
+    if not classified_docs or documents_written == 0:
         print("Indexing fehlgeschlagen: Pipeline lieferte unvollstaendige Ergebnisse.")
         return 1
 

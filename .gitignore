@@ -3,3 +3,5 @@
 __pycache__/
 .claude/
 .DS_Store
+backend/data/uploads/
+backend/data/company_state.json

@@ -4,3 +4,6 @@ qdrant-haystack
 docling
 docling-haystack
 google-genai-haystack
+fastapi
+uvicorn[standard]
+python-multipart
