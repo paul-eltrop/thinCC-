@@ -64,7 +64,7 @@ def pick_next_question(
     return open_list[0] if open_list else None
 
 
-def gather_rag_hints(question: Question) -> list[Document]:
+def gather_rag_hints(question: Question, company_id: str) -> list[Document]:
     filters = None
     if question.related_doc_types:
         allowed_types = list(question.related_doc_types) + ["qa_answer"]
@@ -76,6 +76,7 @@ def gather_rag_hints(question: Question) -> list[Document]:
 
     return retrieve(
         question.text,
+        company_id=company_id,
         filters=filters,
         top_k=CHAT_RETRIEVE_TOP_K,
         score_threshold=CHAT_RETRIEVE_THRESHOLD,
@@ -140,15 +141,16 @@ Stelle jetzt die aktuelle Frage in einem Satz, ggf. mit Verifikations-Hinweis
 falls oben Vorwissen steht."""
 
 
-def _persist_user_answer(question_id: str, answer: str) -> None:
+def _persist_user_answer(company_id: str, question_id: str, answer: str) -> None:
     from company.questions import get_question
 
     question = get_question(question_id)
     if not question:
         return
 
-    write_qa_to_rag(question_id, question.text, answer)
+    write_qa_to_rag(company_id, question_id, question.text, answer)
     update_question_state(
+        company_id,
         question_id,
         status="covered",
         answer=answer,
@@ -163,21 +165,22 @@ def _persist_user_answer(question_id: str, answer: str) -> None:
 def prepare_turn(
     history: list[ChatMessage],
     current_question_id: Optional[str],
+    company_id: str,
 ) -> NextTurn:
     if current_question_id and history and history[-1].role == "user":
         answer_text = history[-1].content.strip()
         if answer_text:
-            _persist_user_answer(current_question_id, answer_text)
+            _persist_user_answer(company_id, current_question_id, answer_text)
 
     questions = load_questions()
-    state = load_state()
+    state = load_state(company_id)
     next_question = pick_next_question(state, questions)
 
     if next_question is None:
         return NextTurn(current_question_id=None, done=True, system_prompt=DONE_PROMPT)
 
     open_list = open_questions(state, questions)
-    rag_hints = gather_rag_hints(next_question)
+    rag_hints = gather_rag_hints(next_question, company_id)
     system_prompt = build_system_prompt(next_question, open_list, rag_hints, state)
 
     return NextTurn(

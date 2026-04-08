@@ -50,7 +50,7 @@ def _format_items(tender: Tender) -> tuple[str, dict[str, str]]:
     return "\n".join(lines), requirement_text
 
 
-def promote_answers(tender: Tender) -> list[str]:
+def promote_answers(tender: Tender, company_id: str) -> list[str]:
     """Schickt alle user_provided-Antworten an Gemini, schreibt die als generisch
     markierten als qa_answer ins Company-RAG. Returnt Liste der promoteten requirement_ids."""
     items_text, requirement_text = _format_items(tender)
@@ -72,7 +72,7 @@ def promote_answers(tender: Tender) -> list[str]:
             continue
 
         synthetic_id = f"tender_promo_{tender.id}_{req_id}"
-        write_qa_to_rag(synthetic_id, requirement_text[req_id], fact)
+        write_qa_to_rag(company_id, synthetic_id, requirement_text[req_id], fact)
         promoted.append(req_id)
 
     return promoted

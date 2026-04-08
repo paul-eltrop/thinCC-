@@ -5,10 +5,11 @@
 import json
 from typing import Literal, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from auth import CurrentUser, current_user
 from chat.agent import ChatMessage, prepare_turn
 from chat.llm import stream_chat
 
@@ -33,9 +34,12 @@ def _sse(event: str | None, data: dict) -> str:
 
 
 @router.post("/turn")
-def chat_turn(body: ChatTurnBody) -> StreamingResponse:
+def chat_turn(
+    body: ChatTurnBody,
+    user: CurrentUser = Depends(current_user),
+) -> StreamingResponse:
     history = [ChatMessage(role=m.role, content=m.content) for m in body.messages]
-    next_turn = prepare_turn(history, body.current_question_id)
+    next_turn = prepare_turn(history, body.current_question_id, user.company_id)
 
     def event_stream():
         yield _sse(

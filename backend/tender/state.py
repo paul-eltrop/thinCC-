@@ -12,6 +12,10 @@ from typing import Literal, Optional
 
 TENDERS_DIR = Path(__file__).resolve().parent.parent / "data" / "tenders"
 
+
+def _company_dir(company_id: str) -> Path:
+    return TENDERS_DIR / company_id
+
 Importance = Literal["critical", "high", "medium", "low"]
 CoverageStatus = Literal["covered", "partial", "missing"]
 Recommendation = Literal["no_go", "apply", "apply_with_input"]
@@ -68,8 +72,8 @@ def make_tender_id(filename: str) -> str:
     return f"{slug}-{timestamp}"
 
 
-def _tender_path(tender_id: str) -> Path:
-    return TENDERS_DIR / f"{tender_id}.json"
+def _tender_path(company_id: str, tender_id: str) -> Path:
+    return _company_dir(company_id) / f"{tender_id}.json"
 
 
 def _tender_from_dict(data: dict) -> Tender:
@@ -91,17 +95,17 @@ def _tender_from_dict(data: dict) -> Tender:
     )
 
 
-def load_tender(tender_id: str) -> Optional[Tender]:
-    path = _tender_path(tender_id)
+def load_tender(company_id: str, tender_id: str) -> Optional[Tender]:
+    path = _tender_path(company_id, tender_id)
     if not path.exists():
         return None
     raw = json.loads(path.read_text(encoding="utf-8"))
     return _tender_from_dict(raw)
 
 
-def save_tender(tender: Tender) -> None:
-    TENDERS_DIR.mkdir(parents=True, exist_ok=True)
-    path = _tender_path(tender.id)
+def save_tender(tender: Tender, company_id: str) -> None:
+    path = _tender_path(company_id, tender.id)
+    path.parent.mkdir(parents=True, exist_ok=True)
 
     serialized = {
         "id": tender.id,
@@ -118,21 +122,22 @@ def save_tender(tender: Tender) -> None:
     os.replace(temp_path, path)
 
 
-def delete_tender(tender_id: str) -> bool:
-    path = _tender_path(tender_id)
+def delete_tender(company_id: str, tender_id: str) -> bool:
+    path = _tender_path(company_id, tender_id)
     if not path.exists():
         return False
     path.unlink()
     return True
 
 
-def list_tenders() -> list[dict]:
-    """Lightweight Liste aller Tender: id, filename, uploaded_at, score, recommendation."""
-    if not TENDERS_DIR.exists():
+def list_tenders(company_id: str) -> list[dict]:
+    """Lightweight Liste aller Tender einer Company: id, filename, uploaded_at, score, recommendation."""
+    company_dir = _company_dir(company_id)
+    if not company_dir.exists():
         return []
 
     summaries = []
-    for path in sorted(TENDERS_DIR.glob("*.json")):
+    for path in sorted(company_dir.glob("*.json")):
         raw = json.loads(path.read_text(encoding="utf-8"))
         ranking = raw.get("ranking") or {}
         summaries.append({
