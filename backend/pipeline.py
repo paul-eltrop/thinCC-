@@ -1,0 +1,195 @@
+# Pipelines fuer den Tender Agent: Indexing, Retrieval und Fit Check.
+# Indexing: Docling Parsing/Chunking, Gemini Embedding, Qdrant Store.
+# Fit Check: Chunks retrieven, LLM bewertet Match zur Ausschreibung.
+
+from pathlib import Path
+
+from docling.chunking import HybridChunker
+from docling_haystack.converter import DoclingConverter
+from haystack import Pipeline
+from haystack.components.writers import DocumentWriter
+from haystack.dataclasses import Document
+from haystack.components.builders import ChatPromptBuilder
+from haystack.components.generators.chat import OpenAIChatGenerator
+from haystack.dataclasses import ChatMessage
+from haystack_integrations.components.embedders.google_genai import GoogleGenAIDocumentEmbedder, GoogleGenAITextEmbedder
+from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
+
+import config
+from document_store import document_store
+
+DOC_TYPE_FOLDERS = {"cvs", "company_profile", "methodology", "reference_project"}
+
+MIN_FIT_SCORE = 0.75
+
+FIT_CHECK_PROMPT = """Du bist ein erfahrener Bid Manager. Analysiere ob unser Unternehmen zu dieser Ausschreibung passt.
+
+Hier sind die relevanten Abschnitte aus unserer Wissensbasis (nur Treffer mit hoher Relevanz):
+{% for doc in documents %}
+---
+Quelle: {{ doc.meta.source_file }} | Typ: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
+{{ doc.content }}
+---
+{% endfor %}
+
+Ausschreibung:
+{{ tender }}
+
+Erstelle eine Fit-Analyse in exakt diesem Format:
+
+**Match-Score:** [Prozentsatz]% Fit
+**Staerken:** [Aufzaehlung der Staerken die wir nachweisen koennen, mit Bezug auf konkrete Chunks]
+**Luecken:** [Was verlangt wird aber in unserer Wissensbasis nicht nachweisbar ist]
+**Empfehlung:** [Bewerben / Nicht bewerben / Bewerben mit Zusatz-Input]
+
+Regeln:
+- Bewerte NUR basierend auf dem bereitgestellten Kontext
+- Wenn wichtige Anforderungen nicht abgedeckt sind, senke den Score
+- Bei Luecken konkret benennen was fehlt
+- Empfehlung "Bewerben mit Zusatz-Input" wenn Score zwischen 40-70%"""
+
+
+def derive_doc_type(file_path: str) -> str:
+    parts = Path(file_path).parts
+    for part in parts:
+        if part in DOC_TYPE_FOLDERS:
+            return part
+    return "unknown"
+
+
+def build_indexing_pipeline() -> Pipeline:
+    pipeline = Pipeline()
+
+    pipeline.add_component(
+        "converter",
+        DoclingConverter(
+            chunker=HybridChunker(
+                tokenizer=config.CHUNKER_TOKENIZER,
+                max_tokens=config.CHUNKER_MAX_TOKENS,
+            ),
+        ),
+    )
+    pipeline.add_component(
+        "embedder",
+        GoogleGenAIDocumentEmbedder(model=config.EMBEDDING_MODEL),
+    )
+    pipeline.add_component(
+        "writer",
+        DocumentWriter(document_store=document_store),
+    )
+
+    pipeline.connect("converter", "embedder")
+    pipeline.connect("embedder", "writer")
+
+    return pipeline
+
+
+def index_documents(paths: list[str]) -> dict:
+    pipeline = build_indexing_pipeline()
+
+    for path in paths:
+        doc_type = derive_doc_type(path)
+        result = pipeline.run(
+            {"converter": {"sources": [path], "meta": {"source_file": Path(path).name, "doc_type": doc_type}}}
+        )
+
+    return result
+
+
+def build_query_pipeline() -> Pipeline:
+    pipeline = Pipeline()
+
+    pipeline.add_component(
+        "text_embedder",
+        GoogleGenAITextEmbedder(model=config.EMBEDDING_MODEL),
+    )
+    pipeline.add_component(
+        "retriever",
+        QdrantEmbeddingRetriever(
+            document_store=document_store,
+            top_k=config.TOP_K,
+            score_threshold=MIN_FIT_SCORE,
+        ),
+    )
+
+    pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+
+    return pipeline
+
+
+def retrieve(question: str, filters: dict = None) -> list[Document]:
+    pipeline = build_query_pipeline()
+
+    retriever_params = {}
+    if filters:
+        retriever_params["filters"] = filters
+
+    result = pipeline.run({
+        "text_embedder": {"text": question},
+        "retriever": retriever_params,
+    })
+
+    return result["retriever"]["documents"]
+
+
+def build_fit_check_pipeline() -> Pipeline:
+    pipeline = Pipeline()
+
+    pipeline.add_component(
+        "text_embedder",
+        GoogleGenAITextEmbedder(model=config.EMBEDDING_MODEL),
+    )
+    pipeline.add_component(
+        "retriever",
+        QdrantEmbeddingRetriever(
+            document_store=document_store,
+            top_k=config.TOP_K,
+            score_threshold=MIN_FIT_SCORE,
+        ),
+    )
+    pipeline.add_component(
+        "prompt_builder",
+        ChatPromptBuilder(
+            template=[
+                ChatMessage.from_system(FIT_CHECK_PROMPT),
+                ChatMessage.from_user("Erstelle die Fit-Analyse."),
+            ],
+        ),
+    )
+    pipeline.add_component(
+        "llm",
+        OpenAIChatGenerator(model=config.LLM_MODEL),
+    )
+
+    pipeline.connect("text_embedder.embedding", "retriever.query_embedding")
+    pipeline.connect("retriever.documents", "prompt_builder.documents")
+    pipeline.connect("prompt_builder", "llm")
+
+    return pipeline
+
+
+def parse_pdf(file_path: str) -> str:
+    converter = DoclingConverter(
+        chunker=HybridChunker(
+            tokenizer=config.CHUNKER_TOKENIZER,
+            max_tokens=config.CHUNKER_MAX_TOKENS,
+        ),
+    )
+    result = converter.run(sources=[file_path])
+    return "\n\n".join(doc.content for doc in result["documents"])
+
+
+def fit_check(tender: str, filters: dict = None) -> str:
+    pipeline = build_fit_check_pipeline()
+
+    retriever_params = {}
+    if filters:
+        retriever_params["filters"] = filters
+
+    result = pipeline.run({
+        "text_embedder": {"text": tender},
+        "retriever": retriever_params,
+        "prompt_builder": {"tender": tender},
+    })
+
+    return result["llm"]["replies"][0].text

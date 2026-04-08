@@ -1,12 +1,12 @@
-# Fuehrt einen einfachen End-to-End Smoke-Test der Indexing-Pipeline aus.
-# Erzeugt ein kleines Testdokument und laesst Docling, Chunking und Embedding laufen.
-# Gibt eine kompakte Zusammenfassung der Pipeline-Ausgabe fuer CI/Pipeline-Checks aus.
+# End-to-End Smoke-Test fuer Indexing, Retrieval und Fit Check.
+# Indexiert eine Test-PDF, retrievet Chunks
+# und fuehrt einen Fit Check gegen eine Beispiel-Ausschreibung aus.
 
 import sys
 from pathlib import Path
 
 import config
-from indexing_pipeline import build_indexing_pipeline, derive_doc_type
+from pipeline import build_indexing_pipeline, derive_doc_type, retrieve, fit_check, parse_pdf
 
 SMOKE_DOC_PATH = Path("test.pdf")
 
@@ -50,10 +50,39 @@ def main() -> int:
     print(f"In Qdrant geschrieben: {documents_written}")
 
     if not converted_docs or not embedded_docs or documents_written == 0:
-        print("Smoke-Test fehlgeschlagen: Pipeline lieferte unvollstaendige Ergebnisse.")
+        print("Indexing fehlgeschlagen: Pipeline lieferte unvollstaendige Ergebnisse.")
         return 1
 
-    print("Smoke-Test erfolgreich.")
+    print("Indexing erfolgreich.\n")
+
+    if not config.OPENAI_API_KEY:
+        print("OPENAI_API_KEY nicht gesetzt, ueberspringe Fit Check.")
+        print("Smoke-Test erfolgreich (ohne Fit Check).")
+        return 0
+
+    tender_path = "/Users/paul/Downloads/sample_tender1_for_building.pdf"
+    print("=== Fit Check Test ===")
+    print(f"Tender-PDF: {tender_path}")
+    print("Parse Tender mit Docling...")
+
+    tender_text = parse_pdf(tender_path)
+    print(f"Tender-Text: {len(tender_text)} Zeichen\n")
+    print(f"Vorschau: {tender_text[:300]}...\n")
+
+    print("=== Retrieval: Tender vs. Wissensbasis ===\n")
+    results = retrieve(tender_text)
+
+    for i, doc in enumerate(results):
+        print(f"--- Treffer {i + 1} (Score: {doc.score:.4f}) ---")
+        print(f"Content: {doc.content[:200]}...")
+        print(f"Source: {doc.meta.get('source_file', 'unknown')}")
+        print()
+
+    print("=== Fit-Analyse (GPT-4o) ===\n")
+    result = fit_check(tender_text)
+    print(result)
+
+    print("\nSmoke-Test erfolgreich.")
     return 0
 
 
