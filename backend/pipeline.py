@@ -84,13 +84,17 @@ def build_indexing_pipeline() -> Pipeline:
     return pipeline
 
 
-def index_documents(paths: list[str]) -> dict:
+def index_documents(paths: list[str], company_id: str = "") -> dict:
     pipeline = build_indexing_pipeline()
 
     for path in paths:
         doc_type = derive_doc_type(path)
         result = pipeline.run(
-            {"converter": {"sources": [path], "meta": {"source_file": Path(path).name, "doc_type": doc_type}}}
+            {"converter": {"sources": [path], "meta": {
+                "source_file": Path(path).name,
+                "doc_type": doc_type,
+                "company_id": company_id,
+            }}}
         )
 
     return result
@@ -117,11 +121,20 @@ def build_query_pipeline() -> Pipeline:
     return pipeline
 
 
-def retrieve(question: str, filters: dict = None) -> list[Document]:
+def company_filter(company_id: str, extra_filters: dict = None) -> dict:
+    conditions = [{"field": "meta.company_id", "operator": "==", "value": company_id}]
+    if extra_filters:
+        conditions.append(extra_filters)
+    return {"operator": "AND", "conditions": conditions}
+
+
+def retrieve(question: str, company_id: str = "", filters: dict = None) -> list[Document]:
     pipeline = build_query_pipeline()
 
     retriever_params = {}
-    if filters:
+    if company_id:
+        retriever_params["filters"] = company_filter(company_id, filters)
+    elif filters:
         retriever_params["filters"] = filters
 
     result = pipeline.run({
@@ -179,17 +192,23 @@ def parse_pdf(file_path: str) -> str:
     return "\n\n".join(doc.content for doc in result["documents"])
 
 
-def fit_check(tender: str, filters: dict = None) -> str:
+def fit_check(tender: str, company_id: str = "", user_prompt: str = "", filters: dict = None) -> str:
     pipeline = build_fit_check_pipeline()
 
     retriever_params = {}
-    if filters:
+    if company_id:
+        retriever_params["filters"] = company_filter(company_id, filters)
+    elif filters:
         retriever_params["filters"] = filters
+
+    prompt_params = {"tender": tender}
+    if user_prompt:
+        prompt_params["user_prompt"] = user_prompt
 
     result = pipeline.run({
         "text_embedder": {"text": tender},
         "retriever": retriever_params,
-        "prompt_builder": {"tender": tender},
+        "prompt_builder": prompt_params,
     })
 
     return result["llm"]["replies"][0].text
