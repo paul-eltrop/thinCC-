@@ -12,12 +12,12 @@ if config.QDRANT_URL and config.QDRANT_API_KEY:
         url=config.QDRANT_URL,
         api_key=Secret.from_token(config.QDRANT_API_KEY),
         embedding_dim=config.EMBEDDING_DIM,
-        recreate_index=True,
+        recreate_index=False,
     )
 else:
     print("WARNUNG: QDRANT_URL/QDRANT_API_KEY nicht gesetzt. Nutze In-Memory Store.")
     document_store = QdrantDocumentStore(
         location=":memory:",
         embedding_dim=config.EMBEDDING_DIM,
-        recreate_index=True,
+        recreate_index=False,
     )

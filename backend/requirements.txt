@@ -4,3 +4,7 @@ qdrant-haystack
 docling
 docling-haystack
 google-genai-haystack
+fastapi
+uvicorn
+supabase
+python-multipart
