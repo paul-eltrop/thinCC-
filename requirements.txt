@@ -1,0 +1,5 @@
+haystack-ai
+qdrant-haystack
+docling
+docling-haystack
+google-genai-haystack
