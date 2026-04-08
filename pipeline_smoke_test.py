@@ -79,7 +79,10 @@ def main() -> int:
         print()
 
     print("=== Fit-Analyse (GPT-4o) ===\n")
-    result = fit_check(tender_text)
+    result = fit_check(
+        tender_text,
+        extra_user_prompt="Beziehe besonders unsere Referenzen im Bereich Hochbau und Projektsteuerung ein.",
+    )
     print(result)
 
     print("\nSmoke-Test erfolgreich.")
