@@ -5,3 +5,7 @@ __pycache__/
 .DS_Store
 backend/data/uploads/
 backend/data/company_state.json
+backend/data/tenders_pdfs/
+backend/data/tenders/
+backend/data/legacy/
+supabase/.temp/
