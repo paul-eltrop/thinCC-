@@ -2,6 +2,7 @@
 # Verbindet sich mit Qdrant Cloud oder faellt auf In-Memory zurueck.
 # Wird von Indexing- und Query-Pipeline gemeinsam genutzt.
 
+from haystack.utils import Secret
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 import config
@@ -9,7 +10,7 @@ import config
 if config.QDRANT_URL and config.QDRANT_API_KEY:
     document_store = QdrantDocumentStore(
         url=config.QDRANT_URL,
-        api_key=config.QDRANT_API_KEY,
+        api_key=Secret.from_token(config.QDRANT_API_KEY),
         embedding_dim=config.EMBEDDING_DIM,
         recreate_index=True,
     )

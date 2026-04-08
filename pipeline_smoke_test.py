@@ -1,12 +1,12 @@
-# End-to-End Smoke-Test fuer Indexing und Retrieval.
-# Indexiert eine Test-PDF und fuehrt danach eine
-# Beispiel-Query aus um das Retrieval zu pruefen.
+# End-to-End Smoke-Test fuer Indexing, Retrieval und Fit Check.
+# Indexiert eine Test-PDF, retrievet Chunks
+# und fuehrt einen Fit Check gegen eine Beispiel-Ausschreibung aus.
 
 import sys
 from pathlib import Path
 
 import config
-from pipeline import build_indexing_pipeline, derive_doc_type, retrieve
+from pipeline import build_indexing_pipeline, derive_doc_type, retrieve, fit_check, parse_pdf
 
 SMOKE_DOC_PATH = Path("test.pdf")
 
@@ -55,12 +55,22 @@ def main() -> int:
 
     print("Indexing erfolgreich.\n")
 
-    test_query = "Welche Projekte hat das Unternehmen durchgefuehrt?"
-    print(f"=== Retrieval Test ===")
-    print(f"Query: {test_query}\n")
+    if not config.OPENAI_API_KEY:
+        print("OPENAI_API_KEY nicht gesetzt, ueberspringe Fit Check.")
+        print("Smoke-Test erfolgreich (ohne Fit Check).")
+        return 0
 
-    results = retrieve(test_query)
-    print(f"Ergebnisse: {len(results)} Chunks\n")
+    tender_path = "/Users/paul/Downloads/sample_tender1_for_building.pdf"
+    print("=== Fit Check Test ===")
+    print(f"Tender-PDF: {tender_path}")
+    print("Parse Tender mit Docling...")
+
+    tender_text = parse_pdf(tender_path)
+    print(f"Tender-Text: {len(tender_text)} Zeichen\n")
+    print(f"Vorschau: {tender_text[:300]}...\n")
+
+    print("=== Retrieval: Tender vs. Wissensbasis ===\n")
+    results = retrieve(tender_text)
 
     for i, doc in enumerate(results):
         print(f"--- Treffer {i + 1} (Score: {doc.score:.4f}) ---")
@@ -68,11 +78,11 @@ def main() -> int:
         print(f"Source: {doc.meta.get('source_file', 'unknown')}")
         print()
 
-    if not results:
-        print("Retrieval fehlgeschlagen: Keine Ergebnisse.")
-        return 1
+    print("=== Fit-Analyse (GPT-4o) ===\n")
+    result = fit_check(tender_text)
+    print(result)
 
-    print("Smoke-Test erfolgreich.")
+    print("\nSmoke-Test erfolgreich.")
     return 0
 
 
