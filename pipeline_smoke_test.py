@@ -1,12 +1,12 @@
-# Fuehrt einen einfachen End-to-End Smoke-Test der Indexing-Pipeline aus.
-# Erzeugt ein kleines Testdokument und laesst Docling, Chunking und Embedding laufen.
-# Gibt eine kompakte Zusammenfassung der Pipeline-Ausgabe fuer CI/Pipeline-Checks aus.
+# End-to-End Smoke-Test fuer Indexing und Retrieval.
+# Indexiert eine Test-PDF und fuehrt danach eine
+# Beispiel-Query aus um das Retrieval zu pruefen.
 
 import sys
 from pathlib import Path
 
 import config
-from indexing_pipeline import build_indexing_pipeline, derive_doc_type
+from pipeline import build_indexing_pipeline, derive_doc_type, retrieve
 
 SMOKE_DOC_PATH = Path("test.pdf")
 
@@ -50,7 +50,26 @@ def main() -> int:
     print(f"In Qdrant geschrieben: {documents_written}")
 
     if not converted_docs or not embedded_docs or documents_written == 0:
-        print("Smoke-Test fehlgeschlagen: Pipeline lieferte unvollstaendige Ergebnisse.")
+        print("Indexing fehlgeschlagen: Pipeline lieferte unvollstaendige Ergebnisse.")
+        return 1
+
+    print("Indexing erfolgreich.\n")
+
+    test_query = "Welche Projekte hat das Unternehmen durchgefuehrt?"
+    print(f"=== Retrieval Test ===")
+    print(f"Query: {test_query}\n")
+
+    results = retrieve(test_query)
+    print(f"Ergebnisse: {len(results)} Chunks\n")
+
+    for i, doc in enumerate(results):
+        print(f"--- Treffer {i + 1} (Score: {doc.score:.4f}) ---")
+        print(f"Content: {doc.content[:200]}...")
+        print(f"Source: {doc.meta.get('source_file', 'unknown')}")
+        print()
+
+    if not results:
+        print("Retrieval fehlgeschlagen: Keine Ergebnisse.")
         return 1
 
     print("Smoke-Test erfolgreich.")

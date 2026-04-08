@@ -6,7 +6,7 @@ import sys
 
 import config
 from document_store import document_store
-from indexing_pipeline import index_documents
+from pipeline import index_documents
 
 TEST_PDF = "test.pdf"
 
