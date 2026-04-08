@@ -31,7 +31,7 @@ export default function SharedChat() {
         .single();
 
       if (data?.welcome_message) {
-        setMessages([{ role: 'assistant', content: data.welcome_message }]);
+        setMessages([{ role: 'assistant', content: `Hi! We're preparing a tender and need your help collecting some documents. Specifically: "${data.welcome_message}". Please upload the relevant files below or give context.` }]);
       }
       setLoaded(true);
     };
@@ -124,7 +124,7 @@ export default function SharedChat() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
+                  className={`max-w-[75%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
                     message.role === 'user'
                       ? 'bg-slate-900 text-white'
                       : 'border border-white/60 bg-white/70 text-slate-900 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl'
