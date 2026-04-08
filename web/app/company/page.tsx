@@ -2,39 +2,23 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { CompanyInfo } from '@/components/CompanyInfo';
 import { CompanyDocuments } from '@/components/CompanyDocuments';
+import { CompanyKnowledge } from '@/components/CompanyKnowledge';
 import { CompanyTeam } from '@/components/CompanyTeam';
 import { createClient } from '@/lib/supabase/client';
-import { dummyCompany, dummyTeam, dummyKnowledgeBase, type Company, type TeamMember, type Document } from '@/data/dummyData';
 
 const tabs = [
-  { id: 'general', label: 'General Info' },
   { id: 'documents', label: 'Documents' },
+  { id: 'knowledge', label: 'Knowledge' },
   { id: 'team', label: 'Team' },
   { id: 'share', label: 'Share' },
 ];
 
 export default function MyCompany() {
-  const [activeTab, setActiveTab] = useState('general');
-  const [company, setCompany] = useState<Company>(dummyCompany);
-  const [team, setTeam] = useState<TeamMember[]>(dummyTeam);
-  const [knowledgeBase, setKnowledgeBase] = useState<Document[]>(dummyKnowledgeBase);
+  const [activeTab, setActiveTab] = useState('documents');
   const [shareLink, setShareLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [welcomeMessage, setWelcomeMessage] = useState('');
-
-  const handleUpdateCompany = (updates: Partial<Company>) => {
-    setCompany(prev => ({ ...prev, ...updates }));
-  };
-
-  const handleUpdateTeam = (newTeam: TeamMember[]) => {
-    setTeam(newTeam);
-  };
-
-  const handleUpdateKnowledgeBase = (newDocs: Document[]) => {
-    setKnowledgeBase(newDocs);
-  };
 
   return (
     <div
@@ -90,15 +74,9 @@ export default function MyCompany() {
 
           {/* Tab Content */}
           <div>
-            {activeTab === 'general' && (
-              <CompanyInfo company={company} onUpdate={handleUpdateCompany} />
-            )}
-            {activeTab === 'documents' && (
-              <CompanyDocuments documents={knowledgeBase} onUpdate={handleUpdateKnowledgeBase} />
-            )}
-            {activeTab === 'team' && (
-              <CompanyTeam team={team} onUpdate={handleUpdateTeam} />
-            )}
+            {activeTab === 'documents' && <CompanyDocuments />}
+            {activeTab === 'knowledge' && <CompanyKnowledge />}
+            {activeTab === 'team' && <CompanyTeam />}
             {activeTab === 'share' && (
               <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
                 <h3 className="text-base font-semibold text-slate-900 mb-1">Share Company Profile</h3>

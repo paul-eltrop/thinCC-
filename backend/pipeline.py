@@ -104,10 +104,15 @@ def build_indexing_pipeline() -> Pipeline:
     return pipeline
 
 
-def index_documents(paths: list[str], company_id: str = "") -> dict:
+def index_documents(
+    paths: list[str],
+    company_id: str = "",
+    document_id: str = "",
+) -> dict:
     """Indexiert Dateien in Qdrant. Jeder Chunk wird einzeln per Gemini Flash
     klassifiziert und bekommt seinen eigenen doc_type in den Metadaten.
-    Wenn company_id gesetzt ist, wird sie in jedes Chunk-Meta geschrieben.
+    Wenn company_id und/oder document_id gesetzt sind, landen sie ebenfalls
+    im Chunk-Meta — das ermoeglicht Filter-Retrieval und sauberes Loeschen.
     Returnt die Anzahl geschriebener Chunks und die klassifizierten Documents."""
     pipeline = build_indexing_pipeline()
 
@@ -118,6 +123,8 @@ def index_documents(paths: list[str], company_id: str = "") -> dict:
         meta = {"source_file": Path(path).name}
         if company_id:
             meta["company_id"] = company_id
+        if document_id:
+            meta["document_id"] = document_id
         result = pipeline.run(
             {"converter": {"sources": [path], "meta": meta}},
             include_outputs_from={"classifier"},

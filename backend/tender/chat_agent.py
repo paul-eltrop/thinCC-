@@ -10,15 +10,16 @@ from haystack.dataclasses import Document
 from chat.agent import ChatMessage
 from pipeline import retrieve
 from tender.coverage import SCAN_SCORE_THRESHOLD
-from tender.ranking import compute_ranking
-from tender.state import (
+from tender.db import (
     Requirement,
     RequirementCoverage,
     Tender,
     TenderRanking,
-    load_tender,
-    save_tender,
+    load_tender_full,
+    update_tender_scan_meta,
+    upsert_coverage,
 )
+from tender.ranking import compute_ranking
 
 CHAT_RETRIEVE_TOP_K = 5
 IMPORTANCE_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -110,7 +111,7 @@ REGELN:
 - Wenn die Wissensbasis nichts hergibt, frage offen.
 - Erwaehne kurz wieviele Luecken noch offen sind.
 
-KONTEXT (Tender: {tender.filename}):
+KONTEXT (Tender: {tender.name}):
 Noch offene Anforderungen ({remaining} insgesamt):
 {_format_open(open_list)}
 
@@ -130,7 +131,6 @@ Verifikations-Hinweis falls oben Vorwissen steht."""
 
 def _persist_user_answer(
     tender: Tender,
-    company_id: str,
     requirement_id: str,
     answer: str,
 ) -> None:
@@ -138,7 +138,7 @@ def _persist_user_answer(
     if not requirement:
         return
 
-    tender.coverage[requirement_id] = RequirementCoverage(
+    new_cov = RequirementCoverage(
         requirement_id=requirement_id,
         status="covered",
         confidence=1.0,
@@ -147,8 +147,18 @@ def _persist_user_answer(
         user_provided=True,
         notes=None,
     )
-    tender.ranking = compute_ranking(tender.requirements, tender.coverage)
-    save_tender(tender, company_id)
+    upsert_coverage(new_cov)
+    tender.coverage[requirement_id] = new_cov
+
+    new_ranking = compute_ranking(tender.requirements, tender.coverage)
+    tender.ranking = new_ranking
+    update_tender_scan_meta(
+        tender.id,
+        score=new_ranking.score,
+        recommendation=new_ranking.recommendation,
+        has_critical_gap=new_ranking.has_critical_gap,
+        reasoning=new_ranking.reasoning,
+    )
 
 
 def prepare_turn(
@@ -157,7 +167,7 @@ def prepare_turn(
     history: list[ChatMessage],
     current_requirement_id: Optional[str],
 ) -> tuple[Optional[Tender], TenderNextTurn]:
-    tender = load_tender(company_id, tender_id)
+    tender = load_tender_full(company_id, tender_id)
     if tender is None:
         return None, TenderNextTurn(
             current_requirement_id=None,
@@ -169,7 +179,7 @@ def prepare_turn(
     if current_requirement_id and history and history[-1].role == "user":
         answer = history[-1].content.strip()
         if answer:
-            _persist_user_answer(tender, company_id, current_requirement_id, answer)
+            _persist_user_answer(tender, current_requirement_id, answer)
 
     open_list = _open_requirements(tender)
     if not open_list:
