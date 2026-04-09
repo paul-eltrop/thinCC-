@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CompanyDocuments } from '@/components/CompanyDocuments';
 import { CompanyKnowledge } from '@/components/CompanyKnowledge';
@@ -58,7 +59,6 @@ const tabs = [
 
 export default function MyCompany() {
   const router = useRouter();
-  const [authed, setAuthed] = useState(false);
   const [activeTab, setActiveTab] = useState('documents');
   const [shareLink, setShareLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -67,15 +67,9 @@ export default function MyCompany() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.replace('/login');
-        return;
-      }
-      setAuthed(true);
+      if (!user) router.push('/login');
     });
   }, [router]);
-
-  if (!authed) return null;
 
   return (
     <div

@@ -201,21 +201,64 @@ RULES:
   suggestion."""
 
 
+def _evaluate_answer(requirement_text: str, answer: str) -> tuple[str, float]:
+    from openai import OpenAI
+    import config
+    client = OpenAI(api_key=config.OPENAI_API_KEY)
+
+    response = client.chat.completions.create(
+        model=config.LLM_MODEL,
+        messages=[
+            {"role": "system", "content": (
+                "You evaluate whether a user's answer provides CONCRETE, VERIFIABLE information that addresses a tender requirement. "
+                "Be STRICT. The answer must contain specific facts, numbers, names, dates, or detailed descriptions. "
+                "Vague claims like 'I have experience in X' or 'We can do that' are NOT sufficient - they need proof or details. "
+                "COVERED: Answer contains specific, concrete information (names, numbers, dates, project details). "
+                "PARTIAL: Answer has some concrete info but is missing key details. "
+                "MISSING: Answer is vague, just a claim without evidence, or irrelevant. "
+                "Respond with EXACTLY one word on the first line: COVERED, PARTIAL, or MISSING. "
+                "On the second line, a confidence score between 0.0 and 1.0. "
+                "On the third line, explain briefly why."
+            )},
+            {"role": "user", "content": (
+                f"Requirement: {requirement_text}\n\n"
+                f"User's answer: {answer}\n\n"
+                f"Does this answer provide concrete, verifiable information?"
+            )},
+        ],
+    )
+
+    text = response.choices[0].message.content.strip()
+    lines = text.split("\n")
+    status_word = lines[0].strip().upper() if lines else "MISSING"
+
+    if "COVERED" in status_word:
+        return "covered", float(lines[1].strip()) if len(lines) > 1 else 0.9
+    if "PARTIAL" in status_word:
+        return "partial", float(lines[1].strip()) if len(lines) > 1 else 0.5
+    return "missing", 0.0
+
+
 def _persist_user_answer(
     tender: Tender,
     requirement_id: str,
     answer: str,
-) -> None:
+) -> bool:
     requirement = next((r for r in tender.requirements if r.id == requirement_id), None)
     if not requirement:
-        return
+        return False
+
+    status, confidence = _evaluate_answer(requirement.text, answer)
+
+    if status == "missing":
+        return False
 
     new_cov = RequirementCoverage(
         requirement_id=requirement_id,
-        status="covered",
-        confidence=1.0,
+        status=status,
+        confidence=confidence,
         evidence=answer,
-        sources=[{"source_file": "tender_chat", "score": 1.0}],
+        sources=[{"source_file": "tender_chat", "score": confidence}],
         user_provided=True,
         notes=None,
     )
@@ -231,6 +274,7 @@ def _persist_user_answer(
         has_critical_gap=new_ranking.has_critical_gap,
         reasoning=new_ranking.reasoning,
     )
+    return True
 
 
 def prepare_turn(
@@ -248,10 +292,34 @@ def prepare_turn(
             ranking=None,
         )
 
+    answer_accepted = True
     if current_requirement_id and history and history[-1].role == "user":
         answer = history[-1].content.strip()
         if answer:
-            _persist_user_answer(tender, current_requirement_id, answer)
+            answer_accepted = _persist_user_answer(tender, current_requirement_id, answer)
+
+    if not answer_accepted and current_requirement_id:
+        rejected_req = next((r for r in tender.requirements if r.id == current_requirement_id), None)
+        if rejected_req:
+            open_list = _open_requirements(tender)
+            reject_prompt = (
+                f"Die letzte Antwort des Users reicht als Nachweis nicht aus fuer: "
+                f"'{rejected_req.text}'. "
+                f"Sage dem User klar: 'Das reicht uns leider als Beleg nicht aus.' "
+                f"Dann biete genau ZWEI Optionen:\n"
+                f"1. Ein Dokument hochladen (Referenzschreiben, Projektbericht, Zertifikat o.ae.) "
+                f"ueber die Bueroklammer unten links.\n"
+                f"2. Diese Anforderung ueberspringen und mit den anderen {len(open_list)} "
+                f"offenen Anforderungen weitermachen.\n"
+                f"WICHTIG: Frage NICHT nochmal nach der gleichen Info. "
+                f"Maximal 2-3 Saetze, freundlich aber direkt."
+            )
+            return tender, TenderNextTurn(
+                current_requirement_id=current_requirement_id,
+                done=False,
+                system_prompt=reject_prompt,
+                ranking=tender.ranking,
+            )
 
     open_list = _open_requirements(tender)
     if not open_list:
