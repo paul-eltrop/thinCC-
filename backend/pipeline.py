@@ -18,41 +18,42 @@ from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRe
 import config
 from classification import DocumentClassifier
 from document_store import document_store
+from reranker import rerank as rerank_documents
 
 DOC_TYPE_FOLDERS = {"cvs", "company_profile", "methodology", "reference_project"}
 
 MIN_FIT_SCORE = 0.75
 
-FIT_CHECK_PROMPT = """Du bist ein erfahrener Bid Manager. Analysiere ob unser Unternehmen zu dieser Ausschreibung passt.
+FIT_CHECK_PROMPT = """You are an experienced bid manager. Analyse whether our company fits this tender.
 
-Hier sind die relevanten Abschnitte aus unserer Wissensbasis (nur Treffer mit hoher Relevanz):
+Here are the relevant sections from our knowledge base (only high-relevance hits):
 {% for doc in documents %}
 ---
-Quelle: {{ doc.meta.source_file }} | Typ: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
+Source: {{ doc.meta.source_file }} | Type: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
 {{ doc.content }}
 ---
 {% endfor %}
 
-Ausschreibung:
+Tender:
 {{ tender }}
 
-Erstelle eine Fit-Analyse in exakt diesem Format:
+Produce a fit analysis in exactly this format:
 
-**Match-Score:** [Prozentsatz]% Fit
-**Staerken:** [Aufzaehlung der Staerken die wir nachweisen koennen, mit Bezug auf konkrete Chunks]
-**Luecken:** [Was verlangt wird aber in unserer Wissensbasis nicht nachweisbar ist]
-**Empfehlung:** [Bewerben / Nicht bewerben / Bewerben mit Zusatz-Input]
+**Match score:** [percentage]% fit
+**Strengths:** [list of strengths we can prove, referencing concrete chunks]
+**Gaps:** [what is required but not demonstrable in our knowledge base]
+**Recommendation:** [Apply / Do not apply / Apply with additional input]
 
-Regeln:
-- Bewerte NUR basierend auf dem bereitgestellten Kontext
-- Wenn wichtige Anforderungen nicht abgedeckt sind, senke den Score
-- Bei Luecken konkret benennen was fehlt
-- Empfehlung "Bewerben mit Zusatz-Input" wenn Score zwischen 40-70%"""
+Rules:
+- Evaluate ONLY based on the provided context
+- If key requirements are not covered, lower the score
+- For gaps, name specifically what is missing
+- Use "Apply with additional input" when the score is between 40-70%"""
 
-FIT_CHECK_USER_PROMPT = """Ausschreibung:
+FIT_CHECK_USER_PROMPT = """Tender:
 {{ tender }}
 
-Zusaetzliche Informationen vom Nutzer:
+Additional information from the user:
 {{ extra_user_prompt }}"""
 
 
@@ -171,14 +172,18 @@ def retrieve(
     filters: dict | None = None,
     top_k: int | None = None,
     score_threshold: float | None = None,
+    rerank: bool = True,
 ) -> list[Document]:
     """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional
     mit Filter nach doc_type, company_id-Tenant-Isolation, ueberschreibbarem
-    top_k und score_threshold."""
-    pipeline = build_query_pipeline(
-        top_k=top_k if top_k is not None else config.TOP_K,
-        score_threshold=score_threshold if score_threshold is not None else MIN_FIT_SCORE,
-    )
+    top_k und score_threshold. Wenn rerank=True (default) und ein Cohere-Key
+    konfiguriert ist, werden top_k * RERANK_CANDIDATE_MULTIPLIER Kandidaten
+    aus Qdrant geholt und vom Cross-Encoder auf top_k umsortiert."""
+    target_k = top_k if top_k is not None else config.TOP_K
+    threshold = score_threshold if score_threshold is not None else MIN_FIT_SCORE
+    fetch_k = target_k * config.RERANK_CANDIDATE_MULTIPLIER if rerank else target_k
+
+    pipeline = build_query_pipeline(top_k=fetch_k, score_threshold=threshold)
 
     retriever_params = {}
     if company_id:
@@ -191,7 +196,10 @@ def retrieve(
         "retriever": retriever_params,
     })
 
-    return result["retriever"]["documents"]
+    documents = result["retriever"]["documents"]
+    if not rerank:
+        return documents
+    return rerank_documents(question, documents, top_n=target_k)
 
 
 def build_fit_check_pipeline(system_prompt: str = FIT_CHECK_PROMPT) -> Pipeline:

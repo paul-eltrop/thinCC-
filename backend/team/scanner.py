@@ -11,20 +11,20 @@ EXTRACT_MODEL = "gemini-2.5-flash"
 EXTRACT_TOP_K = 80
 EXTRACT_SCORE_THRESHOLD = 0.0
 
-EXTRACT_PROMPT = """Du bekommst Auszuege aus Firmen-Dokumenten (CVs, Company Profiles, etc).
-Extrahiere ALLE Personen die als Mitarbeiter dieses Unternehmens erwaehnt werden.
-Ignoriere Kunden, Referenzen oder externe Personen.
+EXTRACT_PROMPT = """You are given excerpts from company documents (CVs, company
+profiles, etc). Extract ALL people mentioned as employees of this company.
+Ignore clients, references or external people.
 
-Quellen:
+Sources:
 {chunks}
 
-Antworte AUSSCHLIESSLICH als JSON-Objekt mit Schema:
+Respond ONLY as a JSON object with the schema:
 {{
   "employees": [
     {{
       "name": string,
-      "role": string oder null,
-      "seniority": "junior" | "mid" | "senior" | "lead" oder null,
+      "role": string or null,
+      "seniority": "junior" | "mid" | "senior" | "lead" or null,
       "source_files": [string]
     }}
   ]
@@ -33,7 +33,7 @@ Antworte AUSSCHLIESSLICH als JSON-Objekt mit Schema:
 
 def _format_chunks(chunks: list) -> str:
     return "\n\n".join(
-        f"[Quelle: {c.meta.get('source_file', 'unbekannt')} | Type: {c.meta.get('doc_type', '?')}]\n{c.content}"
+        f"[source: {c.meta.get('source_file', 'unknown')} | type: {c.meta.get('doc_type', '?')}]\n{c.content}"
         for c in chunks
     )
 
@@ -42,7 +42,7 @@ def extract_employees(company_id: str) -> list[dict]:
     """Holt relevante Chunks fuer die Company und laesst Gemini eine
     deduplizierte Mitarbeiter-Liste extrahieren."""
     chunks = retrieve(
-        "Mitarbeiter Team Lebenslauf Senior Junior Berufserfahrung",
+        "Employee team CV resume senior junior work experience",
         company_id=company_id,
         filters={
             "field": "meta.doc_type",

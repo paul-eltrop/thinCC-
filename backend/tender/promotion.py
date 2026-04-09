@@ -10,27 +10,26 @@ from tender.db import Tender
 
 PROMOTION_MODEL = "gemini-2.5-flash"
 
-PROMOTION_PROMPT = """Du bist ein Wissens-Manager. Unten siehst du Antworten, die ein
-Bewerber waehrend eines Tender-Chats gegeben hat. Entscheide pro Antwort, ob sie
-ein generischer Company-Fact ist (wiederverwendbar fuer zukuenftige Tender) oder
-nur fuer diesen einen Tender relevant.
+PROMOTION_PROMPT = """You are a knowledge manager. Below are answers a bidder gave
+during a tender chat. For each answer decide whether it is a generic company fact
+(reusable for future tenders) or only relevant for this one tender.
 
-Generisch sind z.B.: "Wir haben 12 Senior Consultants", "Wir sind ISO 27001 zertifiziert",
-"Unser Hauptsitz ist Berlin", "Wir bieten Trainings auf Deutsch und Englisch an".
+Generic examples: "We have 12 senior consultants", "We are ISO 27001 certified",
+"Our headquarters is in Berlin", "We offer training in German and English".
 
-Tender-spezifisch sind z.B.: "Ja, wir koennen das in 6 Wochen liefern",
-"Unser Angebot fuer dieses Projekt liegt bei 120k", "Wir haben Ressourcen fuer Q3 frei".
+Tender-specific examples: "Yes, we can deliver this in 6 weeks",
+"Our offer for this project is 120k", "We have resources free in Q3".
 
-Antworten:
+Answers:
 {items}
 
-Antworte AUSSCHLIESSLICH als JSON mit diesem Schema:
+Respond ONLY as JSON with this schema:
 {{
   "decisions": [
     {{
       "requirement_id": "req_001",
       "promote": true | false,
-      "fact": "Umformulierung als generischer Company-Fact (nur wenn promote=true)"
+      "fact": "Rephrased as a generic company fact (only when promote=true)"
     }}
   ]
 }}"""
@@ -45,7 +44,7 @@ def _format_items(tender: Tender) -> tuple[str, dict[str, str]]:
             continue
         requirement_text[req.id] = req.text
         lines.append(
-            f"- requirement_id: {req.id}\n  Anforderung: {req.text}\n  Antwort: {cov.evidence}"
+            f"- requirement_id: {req.id}\n  Requirement: {req.text}\n  Answer: {cov.evidence}"
         )
     return "\n".join(lines), requirement_text
 

@@ -25,7 +25,7 @@ def supabase_anon() -> Client:
     global _anon_client
     if _anon_client is None:
         if not config.SUPABASE_URL or not config.SUPABASE_PUBLISHABLE_KEY:
-            raise RuntimeError("SUPABASE_URL oder SUPABASE_PUBLISHABLE_KEY nicht gesetzt.")
+            raise RuntimeError("SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY not set.")
         _anon_client = create_client(config.SUPABASE_URL, config.SUPABASE_PUBLISHABLE_KEY)
     return _anon_client
 
@@ -35,7 +35,7 @@ def supabase_service() -> Client:
     global _service_client
     if _service_client is None:
         if not config.SUPABASE_URL or not config.SUPABASE_SECRET_KEY:
-            raise RuntimeError("SUPABASE_URL oder SUPABASE_SECRET_KEY nicht gesetzt.")
+            raise RuntimeError("SUPABASE_URL or SUPABASE_SECRET_KEY not set.")
         _service_client = create_client(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY)
     return _service_client
 
@@ -45,7 +45,7 @@ def current_user(authorization: str | None = Header(default=None)) -> CurrentUse
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization Header fehlt oder ist kein Bearer Token.",
+            detail="Authorization header is missing or is not a bearer token.",
         )
 
     token = authorization[7:].strip()
@@ -57,12 +57,12 @@ def current_user(authorization: str | None = Header(default=None)) -> CurrentUse
     except Exception as err:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token-Validierung fehlgeschlagen: {err}",
+            detail=f"Token validation failed: {err}",
         )
 
     user = user_response.user if user_response else None
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token ungueltig.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalid.")
 
     profile = (
         supabase_service()
@@ -76,7 +76,7 @@ def current_user(authorization: str | None = Header(default=None)) -> CurrentUse
     if not profile.data or not profile.data.get("company_id"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Kein Profil mit company_id fuer diesen User gefunden.",
+            detail="No profile with company_id found for this user.",
         )
 
     return CurrentUser(user_id=user.id, company_id=profile.data["company_id"])

@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { TenderCard } from '@/components/TenderCard';
 import { NewTenderModal } from '@/components/Modal';
 import { ToastContainer, useToast } from '@/components/Toast';
+import { Navbar } from '@/components/Navbar';
 import { apiFetch } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
 
@@ -45,7 +46,10 @@ export default function Dashboard() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.replace('/login'); return; }
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
       setAuthed(true);
       loadTenders();
     });
@@ -65,34 +69,7 @@ export default function Dashboard() {
         background: `radial-gradient(ellipse 90% 60% at 0% 0%, #E8F1FE 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 100% 0%, #FDE8E8 0%, transparent 50%), radial-gradient(ellipse 80% 70% at 50% 100%, #EFE5FE 0%, transparent 55%), #F7F3FB`,
       }}
     >
-      <header className="flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-8">
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Tender Agent
-          </h1>
-          <nav className="flex gap-6">
-            <span className="text-sm font-medium text-slate-900">Tenders</span>
-            <Link
-              href="/company"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              My Company
-            </Link>
-            <Link
-              href="/analytics"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Analytics
-            </Link>
-          </nav>
-        </div>
-        <button
-          onClick={() => setIsNewModalOpen(true)}
-          className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-        >
-          New Tender
-        </button>
-      </header>
+      <Navbar />
 
       <main className="px-8 pb-8">
         {error && (
