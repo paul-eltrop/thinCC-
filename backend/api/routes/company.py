@@ -93,13 +93,20 @@ def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingRespo
     async def event_stream():
         yield _sse("start", {"total": total})
 
-        tasks = [asyncio.create_task(_scan_one(q)) for q in questions]
+        to_scan = [q for q in questions if not (existing.get(q.id) and existing[q.id].user_provided)]
+        skipped = [q for q in questions if existing.get(q.id) and existing[q.id].user_provided]
         completed = 0
+
+        for question in skipped:
+            completed += 1
+            yield _sse("progress", {"current": completed, "total": total, "question_id": question.id, "question_text": question.text})
+            yield _sse("result", {"question_id": question.id, "status": existing[question.id].status, "skipped": True})
+
+        tasks = [asyncio.create_task(_scan_one(q)) for q in to_scan]
         try:
             for coro in asyncio.as_completed(tasks):
                 question, new_state = await coro
                 completed += 1
-                previous = existing.get(question.id)
                 update_question_state(
                     user.company_id,
                     question.id,
@@ -107,27 +114,12 @@ def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingRespo
                     answer=new_state.answer,
                     confidence=new_state.confidence,
                     sources=new_state.sources,
-                    user_provided=bool(previous and previous.user_provided),
+                    user_provided=False,
                     last_scanned=new_state.last_scanned or now_iso(),
                     notes=new_state.notes,
                 )
-                yield _sse(
-                    "progress",
-                    {
-                        "current": completed,
-                        "total": total,
-                        "question_id": question.id,
-                        "question_text": question.text,
-                    },
-                )
-                yield _sse(
-                    "result",
-                    {
-                        "question_id": question.id,
-                        "status": new_state.status,
-                        "skipped": False,
-                    },
-                )
+                yield _sse("progress", {"current": completed, "total": total, "question_id": question.id, "question_text": question.text})
+                yield _sse("result", {"question_id": question.id, "status": new_state.status, "skipped": False})
         finally:
             for task in tasks:
                 if not task.done():

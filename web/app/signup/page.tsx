@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { API_BASE } from '@/lib/api';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -20,43 +21,31 @@ export default function Signup() {
     setError('');
     setLoading(true);
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+    const signupRes = await fetch(`${API_BASE}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        company_name: companyName,
+        display_name: displayName,
+      }),
+    });
 
-    if (authError) {
-      setError(authError.message);
+    if (!signupRes.ok) {
+      const body = await signupRes.json().catch(() => ({ detail: 'Signup failed.' }));
+      setError(body.detail || 'Signup failed.');
       setLoading(false);
       return;
     }
 
-    if (!authData.session) {
-      setError('Please check your email to confirm your account before continuing.');
-      setLoading(false);
-      return;
-    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-    await supabase.auth.setSession(authData.session);
-
-    const userId = authData.user!.id;
-
-    const { data: company, error: companyError } = await supabase
-      .from('companies')
-      .insert({ name: companyName })
-      .select('id')
-      .single();
-
-    if (companyError) {
-      setError(companyError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({ id: userId, company_id: company.id, display_name: displayName });
-
-    if (profileError) {
-      await supabase.from('companies').delete().eq('id', company.id);
-      setError(profileError.message);
+    if (signInError) {
+      setError(
+        'Your account was created, but the automatic login failed. ' +
+        'Please go to the login page and sign in with your credentials.',
+      );
       setLoading(false);
       return;
     }

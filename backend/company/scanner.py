@@ -4,6 +4,7 @@
 
 import asyncio
 import json
+import logging
 
 import config
 from company.questions import Question
@@ -11,7 +12,9 @@ from company.state import QuestionState, now_iso
 from llm_utils import call_gemini_json
 from pipeline import retrieve
 
-EVAL_MODEL = "gemini-3.1-flash"
+logger = logging.getLogger(__name__)
+
+EVAL_MODEL = "gpt-4o"
 SCAN_SCORE_THRESHOLD = 0.5
 SCAN_TOP_K = 10
 
@@ -124,6 +127,7 @@ async def scan_question_async(
         try:
             return await asyncio.to_thread(scan_question, question, company_id)
         except Exception as err:
+            logger.error("Scan failed for question %s: %s: %s", question.id, type(err).__name__, err)
             return QuestionState(
                 question_id=question.id,
                 status="missing",
@@ -145,12 +149,18 @@ async def scan_all_questions(
     werden NICHT ueberschrieben. Einzelne Scan-Fehler werden bereits in
     scan_question_async als 'missing' gemappt."""
     semaphore = asyncio.Semaphore(config.SCAN_CONCURRENCY)
-    tasks = [scan_question_async(q, company_id, semaphore) for q in questions]
+
+    to_scan = [q for q in questions if not (existing_state.get(q.id) and existing_state[q.id].user_provided)]
+    tasks = [scan_question_async(q, company_id, semaphore) for q in to_scan]
     results = await asyncio.gather(*tasks)
 
     updated: dict[str, QuestionState] = {}
-    for question, state in zip(questions, results):
+    for question in questions:
         existing = existing_state.get(question.id)
-        state.user_provided = bool(existing and existing.user_provided)
+        if existing and existing.user_provided:
+            updated[question.id] = existing
+            continue
+
+    for question, state in zip(to_scan, results):
         updated[question.id] = state
     return updated
