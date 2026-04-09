@@ -31,7 +31,10 @@ export default function SharedChat() {
         .single();
 
       if (data?.welcome_message) {
-        setMessages([{ role: 'assistant', content: data.welcome_message }]);
+        setMessages([{
+          role: 'assistant',
+          content: `Hi! We're preparing a tender and need your help collecting some documents. Specifically: "${data.welcome_message}". Please upload the relevant files below or give context.`,
+        }]);
       }
       setLoaded(true);
     };
@@ -50,7 +53,7 @@ export default function SharedChat() {
     setInput('');
     setIsLoading(true);
 
-    const res = await fetch(`${API_URL}/chat`, {
+    const res = await fetch(`${API_URL}/share/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -76,7 +79,7 @@ export default function SharedChat() {
     formData.append('file', file);
     formData.append('share_id', id as string);
 
-    const res = await fetch(`${API_URL}/chat/upload`, { method: 'POST', body: formData });
+    const res = await fetch(`${API_URL}/share/chat/upload`, { method: 'POST', body: formData });
     const data = await res.json();
 
     setMessages(prev => [
@@ -124,7 +127,7 @@ export default function SharedChat() {
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
+                  className={`max-w-[75%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm ${
                     message.role === 'user'
                       ? 'bg-slate-900 text-white'
                       : 'border border-white/60 bg-white/70 text-slate-900 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl'
