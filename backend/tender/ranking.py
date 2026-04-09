@@ -26,16 +26,16 @@ def _format_reasoning(
     top_gaps = gaps[:MAX_GAPS_IN_REASONING]
 
     if has_critical_gap:
-        prefix = f"Kritische Luecke vorhanden, Score {score:.0f}%."
+        prefix = f"Critical gap present, score {score:.0f}%."
     elif score < APPLY_THRESHOLD:
-        prefix = f"Score {score:.0f}% — bewerben mit Zusatz-Input."
+        prefix = f"Score {score:.0f}% — apply with additional input."
     else:
-        prefix = f"Score {score:.0f}% — solide Basis fuer Bewerbung."
+        prefix = f"Score {score:.0f}% — solid basis for an application."
 
     if not top_gaps:
         return prefix
     gap_summary = "; ".join(f"{r.importance}: {r.text}" for r in top_gaps)
-    return f"{prefix} Top-Luecken: {gap_summary}"
+    return f"{prefix} Top gaps: {gap_summary}"
 
 
 def compute_ranking(
@@ -47,7 +47,7 @@ def compute_ranking(
             score=0.0,
             recommendation="no_go",
             has_critical_gap=False,
-            reasoning="Keine Anforderungen extrahiert.",
+            reasoning="No requirements extracted.",
         )
 
     weighted_sum = 0.0

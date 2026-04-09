@@ -3,6 +3,7 @@
 # Alle Writes gehen in die Supabase company_question_states Tabelle und
 # fuer Antworten zusaetzlich als Chunk in Qdrant.
 
+import asyncio
 import json
 from dataclasses import asdict
 
@@ -10,10 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import config
 from auth import CurrentUser, current_user
 from company.questions import Question, get_question, load_questions
 from company.rag_sync import delete_qa_from_rag, write_qa_to_rag
-from company.scanner import scan_all_questions, scan_question
+from company.scanner import scan_all_questions, scan_question, scan_question_async
 from company.state import QuestionState, load_state, now_iso, save_state, update_question_state
 
 router = APIRouter(prefix="/company", tags=["company"])
@@ -48,20 +50,20 @@ def get_one_question(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     state = load_state(user.company_id)
     return _question_with_state(question, state)
 
 
 @router.post("/scan")
-def scan_all(user: CurrentUser = Depends(current_user)) -> dict:
+async def scan_all(user: CurrentUser = Depends(current_user)) -> dict:
     questions = load_questions()
     if not questions:
-        raise HTTPException(status_code=500, detail="Kein Fragenkatalog gefunden.")
+        raise HTTPException(status_code=500, detail="No question catalog found.")
 
     existing = load_state(user.company_id)
-    updated = scan_all_questions(questions, existing, user.company_id)
+    updated = await scan_all_questions(questions, existing, user.company_id)
     save_state(updated, user.company_id)
 
     return {
@@ -72,33 +74,32 @@ def scan_all(user: CurrentUser = Depends(current_user)) -> dict:
 
 @router.post("/scan/stream")
 def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingResponse:
-    """SSE-Variante von /company/scan: yieldet pro Frage progress + result events,
-    damit das Frontend einen determinate Ladebalken anzeigen kann."""
+    """SSE-Variante von /company/scan: scant alle Fragen parallel und yieldet
+    progress + result events sobald einzelne Scans fertig sind. Frontend
+    kann damit weiterhin einen determinate Ladebalken zeigen, der jetzt
+    aber viel schneller voll wird."""
     questions = load_questions()
     if not questions:
-        raise HTTPException(status_code=500, detail="Kein Fragenkatalog gefunden.")
+        raise HTTPException(status_code=500, detail="No question catalog found.")
 
     existing = load_state(user.company_id)
     total = len(questions)
+    semaphore = asyncio.Semaphore(config.SCAN_CONCURRENCY)
 
-    def event_stream():
+    async def _scan_one(question: Question) -> tuple[Question, QuestionState]:
+        state = await scan_question_async(question, user.company_id, semaphore)
+        return question, state
+
+    async def event_stream():
         yield _sse("start", {"total": total})
 
-        for index, question in enumerate(questions):
-            current = index + 1
-            yield _sse(
-                "progress",
-                {
-                    "current": current,
-                    "total": total,
-                    "question_id": question.id,
-                    "question_text": question.text,
-                },
-            )
-
-            previous = existing.get(question.id)
-            try:
-                new_state = scan_question(question, user.company_id)
+        tasks = [asyncio.create_task(_scan_one(q)) for q in questions]
+        completed = 0
+        try:
+            for coro in asyncio.as_completed(tasks):
+                question, new_state = await coro
+                completed += 1
+                previous = existing.get(question.id)
                 update_question_state(
                     user.company_id,
                     question.id,
@@ -107,8 +108,17 @@ def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingRespo
                     confidence=new_state.confidence,
                     sources=new_state.sources,
                     user_provided=bool(previous and previous.user_provided),
-                    last_scanned=new_state.last_scanned,
+                    last_scanned=new_state.last_scanned or now_iso(),
                     notes=new_state.notes,
+                )
+                yield _sse(
+                    "progress",
+                    {
+                        "current": completed,
+                        "total": total,
+                        "question_id": question.id,
+                        "question_text": question.text,
+                    },
                 )
                 yield _sse(
                     "result",
@@ -118,26 +128,10 @@ def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingRespo
                         "skipped": False,
                     },
                 )
-            except Exception as err:
-                update_question_state(
-                    user.company_id,
-                    question.id,
-                    status="missing",
-                    answer=None,
-                    confidence=0.0,
-                    sources=[],
-                    user_provided=bool(previous and previous.user_provided),
-                    last_scanned=now_iso(),
-                    notes=f"Scan-Fehler: {type(err).__name__}: {err}",
-                )
-                yield _sse(
-                    "result",
-                    {
-                        "question_id": question.id,
-                        "status": "missing",
-                        "error": f"{type(err).__name__}: {err}",
-                    },
-                )
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
 
         yield _sse("done", {"total_scanned": total})
 
@@ -151,7 +145,7 @@ def scan_one(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     state = load_state(user.company_id)
     existing = state.get(question_id)
@@ -174,15 +168,15 @@ def save_answer(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     if not body.answer.strip():
-        raise HTTPException(status_code=400, detail="Antwort darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Answer must not be empty.")
 
     try:
         write_qa_to_rag(user.company_id, question_id, question.text, body.answer)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"RAG-Sync fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"RAG sync failed: {err}")
 
     new_state = update_question_state(
         user.company_id,
@@ -205,12 +199,12 @@ def delete_answer(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     try:
         delete_qa_from_rag(user.company_id, question_id)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"RAG-Loeschung fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"RAG delete failed: {err}")
 
     new_state = update_question_state(
         user.company_id,

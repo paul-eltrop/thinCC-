@@ -18,8 +18,8 @@ IMPORTANCE_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 STATUS_ORDER = {"missing": 0, "unscanned": 1, "partial": 2, "covered": 3}
 
 DONE_PROMPT = (
-    "Alle Fragen sind beantwortet. Der Onboarding-Chat ist abgeschlossen. "
-    "Du kannst den Chat jetzt schliessen."
+    "All questions have been answered. The onboarding chat is complete. "
+    "You can close the chat now."
 )
 
 
@@ -85,60 +85,97 @@ def gather_rag_hints(question: Question, company_id: str) -> list[Document]:
 
 def _format_hints(hints: list[Document]) -> str:
     if not hints:
-        return "(keine relevanten Treffer in der Wissensbasis)"
+        return "(no relevant matches in the knowledge base)"
     lines = []
     for h in hints:
-        source = h.meta.get("source_file", "unbekannt")
-        lines.append(f"- [Quelle: {source}] {h.content.strip()}")
+        source = h.meta.get("source_file", "unknown")
+        lines.append(f"- [source: {source}] {h.content.strip()}")
     return "\n".join(lines)
 
 
 def _format_open_list(open_list: list[Question]) -> str:
     if not open_list:
-        return "(keine)"
+        return "(none)"
     return "\n".join(f"- [{q.importance}] {q.text}" for q in open_list)
+
+
+def _format_all_questions_with_status(
+    questions: list[Question],
+    state: dict[str, QuestionState],
+) -> str:
+    if not questions:
+        return "(no questions defined)"
+
+    lines = []
+    for q in questions:
+        qs = state.get(q.id)
+        status = "open"
+        if qs and qs.status == "covered":
+            status = "answered"
+        elif qs and qs.status:
+            status = qs.status
+        lines.append(f"- [{q.importance}] {q.text} — {status}")
+    return "\n".join(lines)
+
+
+def _format_current_knowledge(state: dict[str, QuestionState]) -> str:
+    lines = [f"- {qs.answer.strip()}" for qs in state.values() if qs and qs.answer]
+    if not lines:
+        return "(no knowledge collected yet)"
+    return "\n".join(lines)
 
 
 def build_system_prompt(
     question: Question,
+    questions: list[Question],
     open_list: list[Question],
     rag_hints: list[Document],
     state: dict[str, QuestionState],
 ) -> str:
-    qs = state.get(question.id)
-    notes = qs.notes if qs and qs.notes else "(keine)"
-    remaining = len(open_list)
+    total = len(questions)
+    answered_count = sum(1 for qs in state.values() if qs and qs.status == "covered")
+    open_count = len(open_list)
 
-    return f"""Du bist ein freundlicher Onboarding-Agent fuer ein Beratungsunternehmen.
-Deine Aufgabe ist es, fehlende Informationen ueber die Firma zu sammeln, damit
-sie sich auf Tender bewerben kann. Du fuehrst den User durch eine Liste offener
-Fragen — eine nach der anderen.
+    return f"""You are a business analyst onboarding a consulting company.
+Your goal: understand the company well enough that for any tender, you
+could write a tailored proposal on their behalf.
 
-REGELN:
-- Stelle IMMER nur EINE Frage pro Nachricht.
-- Sei kurz, freundlich, professionell. Keine langen Vortraege.
-- Wenn du in der Wissensbasis schon Hinweise findest, formuliere die Frage
-  als Verifikation: "Ich habe gefunden, dass ihr X. Stimmt das noch?"
-- Wenn die Wissensbasis nichts hergibt, stelle die Frage offen.
-- Erwaehne kurz wieviele Fragen noch ausstehen, damit der User Orientierung hat.
-- Wenn der User mit deiner Frage fertig ist, kommt die naechste Frage automatisch
-  im naechsten Turn — du musst nicht "weiter?" fragen.
+APPROACH:
+1. OPEN START — Start with a broad, open question. Let the user talk
+   freely. Extract as many answers as possible from a single reply.
+2. CLUSTER FOLLOW-UPS — Group open questions thematically. Ask one
+   summarising question per topic block, not individual questions one
+   by one.
+3. TARGETED GAPS — Use single questions only for critical info you
+   could not derive from earlier answers or the knowledge base.
 
-KONTEXT:
-Noch offene Fragen ({remaining} insgesamt):
-{_format_open_list(open_list)}
+RULES:
+- NEVER ask for something you can already derive from the conversation
+  or the knowledge base. Confirm instead: "I understood that you do X.
+  Correct?"
+- After each user reply, briefly summarise what you learned and which
+  areas are still open.
+- Show progress: "I have a good picture of your company, methodology
+  and team. I still need details on references and compliance."
+- If the user uploads a document, parse it first and only ask about
+  what the document does NOT cover.
+- Be conversational, not interrogative. No interview mode.
 
-AKTUELLE FRAGE (die du jetzt stellen sollst):
-ID: {question.id}
-Importance: {question.importance}
-Frage: {question.text}
-Scanner-Notes: {notes}
+QUESTION DATABASE:
+The following {total} questions need to be answered by the end.
+Already answered: {answered_count}
+Open: {open_count}
 
-VORWISSEN aus der Wissensbasis fuer diese Frage:
+{_format_all_questions_with_status(questions, state)}
+
+CURRENT KNOWLEDGE:
+{_format_current_knowledge(state)}
+
+ADDITIONAL CONTEXT FROM KNOWLEDGE BASE (for the next priority question):
 {_format_hints(rag_hints)}
 
-Stelle jetzt die aktuelle Frage in einem Satz, ggf. mit Verifikations-Hinweis
-falls oben Vorwissen steht."""
+Decide yourself which question(s) to address next and whether to ask
+them individually or as a cluster. Prioritise by importance."""
 
 
 def _persist_user_answer(company_id: str, question_id: str, answer: str) -> None:
@@ -181,7 +218,7 @@ def prepare_turn(
 
     open_list = open_questions(state, questions)
     rag_hints = gather_rag_hints(next_question, company_id)
-    system_prompt = build_system_prompt(next_question, open_list, rag_hints, state)
+    system_prompt = build_system_prompt(next_question, questions, open_list, rag_hints, state)
 
     return NextTurn(
         current_question_id=next_question.id,
