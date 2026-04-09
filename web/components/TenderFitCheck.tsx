@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 
 type Importance = 'critical' | 'high' | 'medium' | 'low';
 type CoverageStatus = 'covered' | 'partial' | 'missing';
@@ -42,7 +43,7 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 type Phase = { step: 'parse' | 'extract' | 'scan'; message: string };
 
-export function TenderFitCheck({ tenderId }: { tenderId: string }) {
+export function TenderFitCheck({ tenderId, refreshKey }: { tenderId: string; refreshKey?: number }) {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [coverage, setCoverage] = useState<Record<string, Coverage>>({});
   const [ranking, setRanking] = useState<Ranking | null>(null);
@@ -85,7 +86,24 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
 
   useEffect(() => {
     loadTender();
-  }, [loadTender]);
+  }, [loadTender, refreshKey]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`coverage-${tenderId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'tender_coverage',
+      }, (payload) => {
+        const reqId = (payload.new as Record<string, unknown>)?.requirement_id as string;
+        if (reqId?.startsWith(tenderId)) loadTender();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [tenderId, loadTender]);
 
   useEffect(() => {
     chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight });
@@ -330,35 +348,19 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
             No requirements yet. Start a scan above.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="max-h-36 space-y-2 overflow-y-auto pr-2">
             {requirements.map((req) => (
               <RequirementRow
                 key={req.id}
                 req={req}
                 cov={coverage[req.id]}
+                tenderId={tenderId}
               />
             ))}
           </div>
         )}
       </div>
 
-      <ChatPanel
-        scanning={scanning}
-        chatOpen={chatOpen}
-        chatMessages={chatMessages}
-        chatStreaming={chatStreaming}
-        chatDone={chatDone}
-        chatInput={chatInput}
-        currentReqId={currentReqId}
-        chatScrollRef={chatScrollRef}
-        canStart={requirements.length > 0 && scanStatus === 'completed'}
-        promoting={promoting}
-        onStart={startChat}
-        onEnd={endChat}
-        onSend={sendChat}
-        onInput={setChatInput}
-        onPromote={handlePromote}
-      />
     </div>
   );
 }
@@ -463,8 +465,12 @@ function ScoreHeroCard({
   );
 }
 
-function RequirementRow({ req, cov }: { req: Requirement; cov: Coverage | undefined }) {
+function RequirementRow({ req, cov, tenderId }: { req: Requirement; cov: Coverage | undefined; tenderId: string }) {
   const status: CoverageStatus | 'pending' = cov?.status || 'pending';
+  const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const showShare = status === 'missing' || status === 'partial';
+
   const styles: Record<string, string> = {
     covered: 'bg-emerald-100 text-emerald-700',
     partial: 'bg-amber-100 text-amber-700',
@@ -472,14 +478,44 @@ function RequirementRow({ req, cov }: { req: Requirement; cov: Coverage | undefi
     pending: 'bg-slate-100 text-slate-500',
   };
 
+  async function handleShare() {
+    setSharing(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSharing(false); return; }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single();
+    if (!profile) { setSharing(false); return; }
+
+    const linkId = crypto.randomUUID().slice(0, 8);
+    await supabase.from('share_links').insert({
+      id: linkId,
+      company_id: profile.company_id,
+      welcome_message: req.text,
+      created_by: user.id,
+      tender_id: tenderId,
+      requirement_id: req.id,
+    });
+
+    const url = `${window.location.origin}/share/${linkId}`;
+    await navigator.clipboard.writeText(url);
+    setSharing(false);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
-    <div className="rounded-2xl border border-white/60 bg-white/60 p-4 backdrop-blur-xl">
+    <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/60 p-4 backdrop-blur-xl">
       <div className="flex items-start gap-3">
         <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${styles[status]}`}>
           {status}
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-900">{req.text}</p>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p className="break-all text-sm font-medium text-slate-900">{req.text}</p>
           <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">
             {req.importance} · {req.category}
             {req.is_critical && (
@@ -494,9 +530,18 @@ function RequirementRow({ req, cov }: { req: Requirement; cov: Coverage | undefi
             )}
           </p>
           {cov?.evidence && (
-            <p className="mt-2 text-xs text-slate-600 italic">{cov.evidence}</p>
+            <p className="mt-2 break-all text-xs text-slate-600 italic">{cov.evidence}</p>
           )}
         </div>
+        {showShare && (
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="shrink-0 rounded-full border border-white/60 bg-white/70 px-3 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 disabled:opacity-50"
+          >
+            {copied ? 'Copied!' : sharing ? '...' : 'Share'}
+          </button>
+        )}
       </div>
     </div>
   );
