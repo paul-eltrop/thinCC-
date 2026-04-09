@@ -155,7 +155,7 @@ export function CompanyTeam() {
             setMembers((prev) => [...prev, payload.member as Member]);
             setScanFound((n) => n + 1);
           } else if (currentEvent === 'error') {
-            setError(payload.message || 'Unbekannter Fehler');
+            setError(payload.message || 'Unknown error');
           }
           currentEvent = null;
         }

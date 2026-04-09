@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Navbar } from '@/components/Navbar';
 import { apiFetch, API_BASE } from '@/lib/api';
 import { TenderFitCheck } from '@/components/TenderFitCheck';
 import { createClient } from '@/lib/supabase/client';
@@ -19,16 +20,12 @@ type TenderRow = {
   uploaded_at: string | null;
 };
 
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-async function getToken() {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || '';
-}
+const tabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'fit-check', label: 'Fit-Check' },
+  { id: 'draft', label: 'Draft' },
+  { id: 'export', label: 'Export' },
+];
 
 export default function TenderDetail() {
   const params = useParams();
@@ -240,40 +237,72 @@ export default function TenderDetail() {
             Tender Agent
           </Link>
           <nav className="flex gap-6">
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">Tenders</Link>
-            <Link href="/company" className="text-sm font-medium text-slate-600 hover:text-slate-900">My Company</Link>
-            <Link href="/analytics" className="text-sm font-medium text-slate-600 hover:text-slate-900">Analytics</Link>
+            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+              Tenders
+            </Link>
+            <Link href="/company" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+              My Company
+            </Link>
+            <Link href="/analytics" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+              Analytics
+            </Link>
           </nav>
         </div>
-        {tender && (
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-slate-900">{tender.name}</p>
-              <p className="text-xs text-slate-500">
-                {tender.client || 'No client'}{tender.deadline && ` · ${tender.deadline}`}
-              </p>
-            </div>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="rounded-full border border-rose-200 bg-rose-50 px-4 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-            >
-              Delete
-            </button>
-          </div>
-        )}
       </header>
 
-      <main className="flex-1 px-8 pb-24">
+      <main className="px-8 pb-8">
         <div className="mx-auto max-w-6xl">
           {loading ? (
             <p className="text-sm text-slate-500">Loading tender...</p>
           ) : error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{error}</div>
-          ) : tender ? (
-            <TenderFitCheck tenderId={tender.id} refreshKey={refreshKey} />
-          ) : (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+              {error}
+            </div>
+          ) : !tender ? (
             <p className="text-sm text-slate-500">Tender not found.</p>
+          ) : (
+            <>
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <Link href="/" className="text-xs text-slate-500 hover:text-slate-700">
+                    ← Back to Tenders
+                  </Link>
+                  <h2 className="mt-2 text-2xl font-semibold text-slate-900">{tender.name}</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {tender.client || 'No client specified'}
+                    {tender.deadline && ` · Deadline: ${tender.deadline}`}
+                  </p>
+                </div>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="rounded-full border border-rose-200 bg-rose-50 px-4 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              </div>
+
+              <div className="mb-8 flex gap-6 border-b border-slate-200">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`pb-3 px-1 text-sm font-medium transition-colors ${
+                      activeTab === tab.id
+                        ? 'border-b-2 border-blue-500 text-blue-600'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'overview' && <OverviewTab tender={tender} />}
+              {activeTab === 'fit-check' && <TenderFitCheck tenderId={tender.id} />}
+              {activeTab === 'draft' && <TenderDraftWrapper tenderId={tender.id} />}
+              {activeTab === 'export' && <TenderExportWrapper tenderId={tender.id} />}
+            </>
           )}
         </div>
       </main>

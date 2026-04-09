@@ -25,17 +25,98 @@ type DocumentRow = {
   file_size: number | null;
   status: 'indexing' | 'ready' | 'failed' | string;
   chunks_indexed: number | null;
+  error_message: string | null;
   uploaded_at: string;
 };
 
 type UploadingItem = {
   id: string;
   filename: string;
-  phase: 'uploading' | 'indexing';
-  error?: string;
 };
 
 const BUCKET = 'company_documents';
+
+type Category = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  keywords: string[];
+};
+
+const CATEGORIES: Category[] = [
+  {
+    id: 'tender',
+    label: 'Past Tenders / RFPs',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 2v6h6" />
+        <path d="M16 13H8" />
+        <path d="M16 17H8" />
+      </svg>
+    ),
+    keywords: ['tender', 'rfp', 'rfq', 'rfi', 'proposal', 'bid', 'ausschreibung', 'angebot', 'vergabe'],
+  },
+  {
+    id: 'company',
+    label: 'Company Profile',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+        <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+        <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      </svg>
+    ),
+    keywords: ['company', 'profile', 'about', 'overview', 'unternehmen', 'firma', 'capabilities', 'brochure'],
+  },
+  {
+    id: 'cv',
+    label: "CV's",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+    keywords: ['cv', 'resume', 'lebenslauf', 'vita', 'curriculum'],
+  },
+  {
+    id: 'methodology',
+    label: 'Methodology',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z" />
+      </svg>
+    ),
+    keywords: ['method', 'methodology', 'process', 'approach', 'framework', 'methodik', 'vorgehen'],
+  },
+  {
+    id: 'other',
+    label: 'Others',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      </svg>
+    ),
+    keywords: [],
+  },
+];
+
+function categorizeDocument(doc: DocumentRow): string {
+  const name = doc.name.toLowerCase();
+  const docType = (doc.doc_type || '').toLowerCase();
+
+  for (const cat of CATEGORIES) {
+    if (cat.id === 'other') continue;
+    if (cat.keywords.some((kw) => name.includes(kw) || docType.includes(kw))) {
+      return cat.id;
+    }
+  }
+  return 'other';
+}
 
 export function CompanyDocuments() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -46,12 +127,13 @@ export function CompanyDocuments() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (cid: string) => {
     setError(null);
     const supabase = createClient();
     const { data, error: err } = await supabase
       .from('documents')
       .select('*')
+      .eq('company_id', cid)
       .order('uploaded_at', { ascending: false });
 
     if (err) {
@@ -63,22 +145,38 @@ export function CompanyDocuments() {
     setLoading(false);
   }, []);
 
-  const loadCompanyId = useCallback(async () => {
+  const loadCompanyId = useCallback(async (): Promise<string | null> => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return null;
     const { data: profile } = await supabase
       .from('profiles')
       .select('company_id')
       .eq('id', user.id)
       .single();
-    if (profile?.company_id) setCompanyId(profile.company_id);
+    if (!profile?.company_id) return null;
+    setCompanyId(profile.company_id);
+    return profile.company_id;
   }, []);
 
   useEffect(() => {
-    loadCompanyId();
-    loadDocuments();
+    (async () => {
+      const cid = await loadCompanyId();
+      if (cid) {
+        await loadDocuments(cid);
+      } else {
+        setLoading(false);
+      }
+    })();
   }, [loadCompanyId, loadDocuments]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    const hasIndexing = documents.some((d) => d.status === 'indexing');
+    if (!hasIndexing) return;
+    const interval = setInterval(() => loadDocuments(companyId), 3000);
+    return () => clearInterval(interval);
+  }, [documents, loadDocuments, companyId]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -101,7 +199,7 @@ export function CompanyDocuments() {
     const safeName = sanitizeFilename(file.name);
     const path = `${cid}/${crypto.randomUUID()}-${safeName}`;
     const itemId = crypto.randomUUID();
-    setUploads((prev) => [...prev, { id: itemId, filename: file.name, phase: 'uploading' }]);
+    setUploads((prev) => [...prev, { id: itemId, filename: file.name }]);
 
     const supabase = createClient();
     const { error: storageErr } = await supabase.storage
@@ -113,8 +211,6 @@ export function CompanyDocuments() {
       setError(`Upload failed (${file.name}): ${storageErr.message}`);
       return;
     }
-
-    setUploads((prev) => prev.map((u) => (u.id === itemId ? { ...u, phase: 'indexing' } : u)));
 
     try {
       const res = await apiFetch('/documents/index', {
@@ -131,10 +227,10 @@ export function CompanyDocuments() {
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
     } catch (err) {
-      setError(`Indexing failed (${file.name}): ${(err as Error).message}`);
+      setError(`Indexing start failed (${file.name}): ${(err as Error).message}`);
     } finally {
       setUploads((prev) => prev.filter((u) => u.id !== itemId));
-      await loadDocuments();
+      await loadDocuments(cid);
     }
   }
 
@@ -151,7 +247,7 @@ export function CompanyDocuments() {
     } catch (err) {
       setError(`Delete failed: ${(err as Error).message}`);
     } finally {
-      await loadDocuments();
+      if (companyId) await loadDocuments(companyId);
     }
   }
 
@@ -197,10 +293,25 @@ export function CompanyDocuments() {
           <p className="text-sm text-slate-500">No documents yet. Upload your first one.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {documents.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} onDelete={() => setPendingDelete(doc)} />
-          ))}
+        <div className="space-y-8">
+          {CATEGORIES.map((cat) => {
+            const catDocs = documents.filter((d) => categorizeDocument(d) === cat.id);
+            if (catDocs.length === 0) return null;
+            return (
+              <div key={cat.id}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-slate-400">{cat.icon}</span>
+                  <h3 className="text-sm font-semibold text-slate-700">{cat.label}</h3>
+                  <span className="text-[11px] font-medium text-slate-400">{catDocs.length}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {catDocs.map((doc) => (
+                    <DocumentCard key={doc.id} doc={doc} onDelete={() => setPendingDelete(doc)} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -250,7 +361,6 @@ function DropZone({
 
 function UploadingCard({ item }: { item: UploadingItem }) {
   const visual = visualForFilename(item.filename);
-  const label = item.phase === 'uploading' ? 'Uploading...' : 'Indexing...';
   return (
     <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/70 p-5 backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -260,7 +370,7 @@ function UploadingCard({ item }: { item: UploadingItem }) {
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-slate-900">{item.filename}</p>
-            <p className="text-[11px] text-slate-500">{label}</p>
+            <p className="text-[11px] text-slate-500">Uploading...</p>
           </div>
         </div>
         <Spinner />
@@ -333,7 +443,12 @@ function DocumentCard({ doc, onDelete }: { doc: DocumentRow; onDelete: () => voi
         <p className="mt-3 text-[11px] font-medium text-blue-600">Indexing...</p>
       )}
       {isFailed && (
-        <p className="mt-3 text-[11px] font-medium text-rose-600">Indexing failed</p>
+        <div className="mt-3 space-y-1">
+          <p className="text-[11px] font-medium text-rose-600">Indexing failed</p>
+          {doc.error_message && (
+            <p className="text-[11px] text-rose-500/80 line-clamp-3">{doc.error_message}</p>
+          )}
+        </div>
       )}
     </div>
   );

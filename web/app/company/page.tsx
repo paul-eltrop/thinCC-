@@ -6,13 +6,55 @@ import { useRouter } from 'next/navigation';
 import { CompanyDocuments } from '@/components/CompanyDocuments';
 import { CompanyKnowledge } from '@/components/CompanyKnowledge';
 import { CompanyTeam } from '@/components/CompanyTeam';
+import { Navbar } from '@/components/Navbar';
 import { createClient } from '@/lib/supabase/client';
 
 const tabs = [
-  { id: 'documents', label: 'Documents' },
-  { id: 'knowledge', label: 'Knowledge' },
-  { id: 'team', label: 'Team' },
-  { id: 'share', label: 'Share' },
+  {
+    id: 'documents',
+    label: 'Documents',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      </svg>
+    ),
+  },
+  {
+    id: 'knowledge',
+    label: 'Knowledge',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'team',
+    label: 'Team',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    id: 'share',
+    label: 'Share',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.59 13.51 6.83 3.98" />
+        <path d="m15.41 6.51-6.82 3.98" />
+      </svg>
+    ),
+  },
 ];
 
 export default function MyCompany() {
@@ -36,31 +78,7 @@ export default function MyCompany() {
         background: `radial-gradient(ellipse 90% 60% at 0% 0%, #E8F1FE 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 100% 0%, #FDE8E8 0%, transparent 50%), radial-gradient(ellipse 80% 70% at 50% 100%, #EFE5FE 0%, transparent 55%), #F7F3FB`,
       }}
     >
-      {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-8">
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Tender Agent
-          </h1>
-          <nav className="flex gap-6">
-            <Link
-              href="/"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Tenders
-            </Link>
-            <span className="text-sm font-medium text-slate-900">
-              My Company
-            </span>
-            <Link
-              href="/analytics"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Analytics
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Main Content */}
       <main className="px-8 pb-8">
@@ -71,17 +89,18 @@ export default function MyCompany() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-6 border-b border-slate-200 mb-8">
+          <div className="flex items-center gap-1 rounded-full border border-white/60 bg-white/50 p-1 backdrop-blur-xl mb-8 w-fit">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`pb-3 px-1 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
                   activeTab === tab.id
-                    ? 'border-b-2 border-blue-500 text-blue-600'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/70'
                 }`}
               >
+                <span className={activeTab === tab.id ? 'text-white' : 'text-slate-400'}>{tab.icon}</span>
                 {tab.label}
               </button>
             ))}

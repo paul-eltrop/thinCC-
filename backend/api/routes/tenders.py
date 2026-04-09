@@ -2,6 +2,7 @@
 # der via Gemini Anforderungen extrahiert + Coverage gegen die Company-RAG
 # scannt, plus Chat zum Lueckenschluss + Promotion zur Company-Knowledge-Base.
 
+import asyncio
 import json
 import tempfile
 import uuid
@@ -13,12 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import config
 from auth import CurrentUser, current_user, supabase_service
 from chat.agent import ChatMessage as AgentChatMessage
 from chat.llm import stream_chat
 from pipeline import parse_pdf
 from tender.chat_agent import prepare_turn
-from tender.coverage import check_requirement
+from tender.coverage import check_requirement_async
 from tender.db import (
     Requirement,
     clear_scan_state,
@@ -60,14 +62,14 @@ class CreateTenderBody(BaseModel):
 def _validate_extension(filename: str) -> None:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Format {suffix} nicht unterstuetzt. Nur PDF erlaubt.")
+        raise HTTPException(status_code=400, detail=f"Format {suffix} not supported. Only PDF allowed.")
 
 
 def _validate_storage_path(storage_path: str, company_id: str) -> None:
     if not storage_path or "/" not in storage_path:
-        raise HTTPException(status_code=400, detail="Ungueltiger storage_path.")
+        raise HTTPException(status_code=400, detail="Invalid storage_path.")
     if storage_path.split("/", 1)[0] != company_id:
-        raise HTTPException(status_code=403, detail="storage_path liegt nicht im eigenen company-Bereich.")
+        raise HTTPException(status_code=403, detail="storage_path is not inside the caller's company area.")
 
 
 def _slugify(name: str) -> str:
@@ -80,7 +82,7 @@ def _slugify(name: str) -> str:
 @router.post("")
 def create_tender(body: CreateTenderBody, user: CurrentUser = Depends(current_user)) -> dict:
     if not body.name.strip():
-        raise HTTPException(status_code=400, detail="Name darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Name must not be empty.")
     _validate_extension(body.filename)
     _validate_storage_path(body.storage_path, user.company_id)
 
@@ -101,7 +103,7 @@ def create_tender(body: CreateTenderBody, user: CurrentUser = Depends(current_us
     }
     result = supabase_service().table("tenders").insert(row).execute()
     if not result.data:
-        raise HTTPException(status_code=500, detail="Insert fehlgeschlagen.")
+        raise HTTPException(status_code=500, detail="Insert failed.")
     return result.data[0]
 
 
@@ -124,7 +126,7 @@ def list_tenders(user: CurrentUser = Depends(current_user)) -> dict:
 def get_tender(tender_id: str, user: CurrentUser = Depends(current_user)) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     sb = supabase_service()
     raw = (
@@ -151,9 +153,9 @@ def delete_tender(tender_id: str, user: CurrentUser = Depends(current_user)) -> 
         .execute()
     )
     if not fetched or not fetched.data:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
     if fetched.data["company_id"] != user.company_id:
-        raise HTTPException(status_code=403, detail="Tender gehoert einer anderen Company.")
+        raise HTTPException(status_code=403, detail="Tender belongs to a different company.")
 
     storage_path = fetched.data.get("storage_path")
     if storage_path:
@@ -209,7 +211,7 @@ def _ensure_parsed_text(tender, sb) -> str:
     if tender.parsed_text:
         return tender.parsed_text
     if not tender.filename:
-        raise HTTPException(status_code=422, detail="Tender hat keine Datei.")
+        raise HTTPException(status_code=422, detail="Tender has no file.")
 
     storage_path = (
         sb.table("tenders")
@@ -233,7 +235,7 @@ def _ensure_parsed_text(tender, sb) -> str:
         Path(tmp.name).unlink(missing_ok=True)
 
     if not text.strip():
-        raise HTTPException(status_code=422, detail="PDF enthielt keinen extrahierbaren Text.")
+        raise HTTPException(status_code=422, detail="PDF contained no extractable text.")
 
     set_parsed_text(tender.id, text)
     return text
@@ -244,18 +246,19 @@ def scan_tender_stream(
     tender_id: str,
     user: CurrentUser = Depends(current_user),
 ) -> StreamingResponse:
-    """Zwei-Phasen-SSE: Phase 1 streamt Requirements live aus Gemini, Phase 2
-    scant die Coverage pro Requirement gegen die Company-RAG. Nach jedem
-    Coverage-Result wird das Ranking neu berechnet und gestreamt."""
+    """Zwei-Phasen-SSE: Phase 1 streamt Requirements live aus Gemini. Phase 2
+    scant die Coverage parallel (Semaphore-limitiert) und yieldet pro fertigem
+    Requirement coverage_result + ranking. Reihenfolge im Stream entspricht
+    der Fertigstellung, nicht dem Index."""
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
-    def event_stream():
+    async def event_stream():
         sb = supabase_service()
         try:
             yield _sse("start", {})
-            yield _sse("phase", {"step": "parse", "message": "Parse Tender-PDF..."})
+            yield _sse("phase", {"step": "parse", "message": "Parsing tender PDF..."})
 
             try:
                 parsed_text = _ensure_parsed_text(tender, sb)
@@ -267,7 +270,7 @@ def scan_tender_stream(
             clear_scan_state(tender.id)
             update_tender_scan_meta(tender.id, scan_status="extracting", requirement_count=0)
 
-            yield _sse("phase", {"step": "extract", "message": "Extrahiere Anforderungen..."})
+            yield _sse("phase", {"step": "extract", "message": "Extracting requirements..."})
 
             requirements: list[Requirement] = []
             try:
@@ -288,12 +291,12 @@ def scan_tender_stream(
                         },
                     )
             except Exception as err:
-                yield _sse("error", {"message": f"Extraktion fehlgeschlagen: {type(err).__name__}: {err}"})
+                yield _sse("error", {"message": f"Extraction failed: {type(err).__name__}: {err}"})
                 update_tender_scan_meta(tender.id, scan_status="error")
                 return
 
             if not requirements:
-                yield _sse("error", {"message": "Keine Anforderungen extrahiert."})
+                yield _sse("error", {"message": "No requirements extracted."})
                 update_tender_scan_meta(tender.id, scan_status="error")
                 return
 
@@ -304,47 +307,47 @@ def scan_tender_stream(
             )
             yield _sse(
                 "phase",
-                {"step": "scan", "message": f"Scanne Coverage fuer {len(requirements)} Anforderungen..."},
+                {"step": "scan", "message": f"Scanning coverage for {len(requirements)} requirements..."},
             )
 
-            coverage_map = {}
+            semaphore = asyncio.Semaphore(config.SCAN_CONCURRENCY)
+            tasks = [
+                asyncio.create_task(check_requirement_async(req, user.company_id, semaphore))
+                for req in requirements
+            ]
+            coverage_map: dict = {}
             total = len(requirements)
-            for idx, req in enumerate(requirements, start=1):
-                try:
-                    cov = check_requirement(req, user.company_id)
-                except Exception as err:
-                    from tender.db import RequirementCoverage
-                    cov = RequirementCoverage(
-                        requirement_id=req.id,
-                        status="missing",
-                        confidence=0.0,
-                        evidence=None,
-                        sources=[],
-                        user_provided=False,
-                        notes=f"Scan-Fehler: {type(err).__name__}: {err}",
+            ranking = None
+            try:
+                completed = 0
+                for coro in asyncio.as_completed(tasks):
+                    cov = await coro
+                    completed += 1
+                    upsert_coverage(cov)
+                    coverage_map[cov.requirement_id] = cov
+
+                    ranking = compute_ranking(requirements, coverage_map)
+                    update_tender_scan_meta(
+                        tender.id,
+                        score=ranking.score,
+                        recommendation=ranking.recommendation,
+                        has_critical_gap=ranking.has_critical_gap,
+                        reasoning=ranking.reasoning,
                     )
 
-                upsert_coverage(cov)
-                coverage_map[req.id] = cov
-
-                ranking = compute_ranking(requirements, coverage_map)
-                update_tender_scan_meta(
-                    tender.id,
-                    score=ranking.score,
-                    recommendation=ranking.recommendation,
-                    has_critical_gap=ranking.has_critical_gap,
-                    reasoning=ranking.reasoning,
-                )
-
-                yield _sse(
-                    "coverage_result",
-                    {
-                        "coverage": asdict(cov),
-                        "current": idx,
-                        "total": total,
-                    },
-                )
-                yield _sse("ranking", asdict(ranking))
+                    yield _sse(
+                        "coverage_result",
+                        {
+                            "coverage": asdict(cov),
+                            "current": completed,
+                            "total": total,
+                        },
+                    )
+                    yield _sse("ranking", asdict(ranking))
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
 
             update_tender_scan_meta(
                 tender.id,
@@ -355,8 +358,8 @@ def scan_tender_stream(
                 "done",
                 {
                     "requirement_count": total,
-                    "score": ranking.score,
-                    "recommendation": ranking.recommendation,
+                    "score": ranking.score if ranking else 0,
+                    "recommendation": ranking.recommendation if ranking else "no_go",
                 },
             )
         except Exception as err:
@@ -390,7 +393,7 @@ def tender_chat_turn(
         body.current_requirement_id,
     )
     if tender is None:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     def event_stream():
         yield _sse(
@@ -430,12 +433,12 @@ def promote_tender(
 ) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     try:
         promoted = promote_answers(tender, user.company_id)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Promotion fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"Promotion failed: {err}")
 
     return {"promoted": promoted, "count": len(promoted)}
 
@@ -462,11 +465,11 @@ def generate_proposal(
 ) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
     if not tender.parsed_text:
         raise HTTPException(
             status_code=422,
-            detail="Tender hat noch keinen geparsten Text. Bitte erst Fit-Check Scan starten.",
+            detail="Tender has no parsed text yet. Please run a fit-check scan first.",
         )
 
     try:
@@ -476,7 +479,7 @@ def generate_proposal(
             extra_context=body.extra_context or "",
         )
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Generate fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"Generate failed: {err}")
 
     return {"draft": result["raw_text"], "sources_used": result["sources_used"]}
 
@@ -488,11 +491,11 @@ def chat_proposal(
     user: CurrentUser = Depends(current_user),
 ) -> dict:
     if not body.message.strip():
-        raise HTTPException(status_code=400, detail="Nachricht darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Message must not be empty.")
 
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     try:
         result = chat_on_proposal(
@@ -503,7 +506,7 @@ def chat_proposal(
             company_id=user.company_id,
         )
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Chat fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"Chat failed: {err}")
 
     if result.get("updated_sections"):
         merged = patch_proposal_sections(tender_id, result["updated_sections"])
@@ -520,6 +523,6 @@ def patch_proposal(
 ) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
     save_proposal(tender_id, body.sections, body.meta)
     return {"ok": True, "section_count": len(body.sections)}
