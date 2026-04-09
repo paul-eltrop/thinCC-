@@ -148,8 +148,6 @@ Your goal: clarify all open requirements as efficiently as possible so
 the draft can be generated.
 
 TENDER: {tender.name}
-CLIENT: {tender.client}
-DEADLINE: {tender.deadline}
 
 FIT-CHECK RESULT:
 Match score: {match_score}%
