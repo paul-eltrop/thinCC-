@@ -1,9 +1,11 @@
 # Scannt jede Question gegen den RAG: retrieve relevante Chunks, lass Gemini
 # bewerten ob die Frage abdeckbar ist, und schreibe einen QuestionState.
-# Sequenziell, blockend — fuer ~20 Fragen rund 30-60 Sekunden.
+# Parallelisiert ueber asyncio.gather mit Semaphore-Limit aus config.
 
+import asyncio
 import json
 
+import config
 from company.questions import Question
 from company.state import QuestionState, now_iso
 from llm_utils import call_gemini_json
@@ -72,7 +74,8 @@ def _evaluate_chunks(question: Question, chunks: list) -> dict:
 
 
 def scan_question(question: Question, company_id: str) -> QuestionState:
-    """Retrievet Chunks fuer die Frage und laesst Gemini bewerten ob abdeckbar."""
+    """Retrievet Chunks fuer die Frage und laesst Gemini bewerten ob abdeckbar.
+    Synchron — fuer parallele Ausfuehrung ueber scan_question_async."""
     filters = None
     if question.related_doc_types:
         allowed_types = list(question.related_doc_types) + ["qa_answer"]
@@ -109,33 +112,45 @@ def scan_question(question: Question, company_id: str) -> QuestionState:
     )
 
 
-def scan_all_questions(
-    questions: list[Question],
-    existing_state: dict[str, QuestionState],
+async def scan_question_async(
+    question: Question,
     company_id: str,
-) -> dict[str, QuestionState]:
-    """Scannt alle Fragen sequenziell. User-gegebene Antworten werden NICHT
-    ueberschrieben. Wenn eine einzelne Frage scheitert (LLM-Error trotz Retry),
-    wird sie als 'missing' mit Fehler-Note markiert und der Scan laeuft weiter."""
-    updated: dict[str, QuestionState] = {}
-
-    for q in questions:
-        existing = existing_state.get(q.id)
-        was_user_provided = bool(existing and existing.user_provided)
+    semaphore: asyncio.Semaphore,
+) -> QuestionState:
+    """Async-Wrapper um scan_question. Holt sich einen Slot aus dem Semaphor und
+    fuehrt den blocking Scan in einem Worker-Thread aus, damit der Event-Loop
+    nicht blockiert. Eigene Exceptions werden in einen 'missing'-State gemappt."""
+    async with semaphore:
         try:
-            new_state = scan_question(q, company_id)
-            new_state.user_provided = was_user_provided
-            updated[q.id] = new_state
+            return await asyncio.to_thread(scan_question, question, company_id)
         except Exception as err:
-            updated[q.id] = QuestionState(
-                question_id=q.id,
+            return QuestionState(
+                question_id=question.id,
                 status="missing",
                 answer=None,
                 confidence=0.0,
                 sources=[],
-                user_provided=was_user_provided,
+                user_provided=False,
                 last_scanned=now_iso(),
                 notes=f"Scan-Fehler: {type(err).__name__}: {err}",
             )
 
+
+async def scan_all_questions(
+    questions: list[Question],
+    existing_state: dict[str, QuestionState],
+    company_id: str,
+) -> dict[str, QuestionState]:
+    """Scannt alle Fragen parallel mit Semaphore-Limit. User-gegebene Antworten
+    werden NICHT ueberschrieben. Einzelne Scan-Fehler werden bereits in
+    scan_question_async als 'missing' gemappt."""
+    semaphore = asyncio.Semaphore(config.SCAN_CONCURRENCY)
+    tasks = [scan_question_async(q, company_id, semaphore) for q in questions]
+    results = await asyncio.gather(*tasks)
+
+    updated: dict[str, QuestionState] = {}
+    for question, state in zip(questions, results):
+        existing = existing_state.get(question.id)
+        state.user_provided = bool(existing and existing.user_provided)
+        updated[question.id] = state
     return updated

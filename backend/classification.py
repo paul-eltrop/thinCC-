@@ -1,6 +1,6 @@
 # LLM-basierte Klassifikation hochgeladener Dokumente in eine feste Liste
-# von Typen. Wird beim Upload aufgerufen damit jeder Chunk im RAG mit
-# verlaesslichem doc_type landet — Voraussetzung fuer gefilterte Retrieval.
+# von Typen. Eine Klassifikation pro Dokument, Ergebnis auf alle Chunks
+# propagiert — Voraussetzung fuer verlaessliches gefiltertes Retrieval.
 
 from haystack import component
 from haystack.dataclasses import Document
@@ -18,7 +18,7 @@ DOC_TYPES = [
     "other",
 ]
 
-CLASSIFICATION_MODEL = "gemini-2.5-flash"
+CLASSIFICATION_HEAD_CHARS = 3000
 
 CLASSIFICATION_PROMPT = """Klassifiziere das folgende Dokument in GENAU EINE Kategorie:
 
@@ -41,17 +41,16 @@ Kategorie:"""
 
 
 def classify_document(text: str) -> str:
-    """Schickt die ersten 3000 Zeichen an Gemini und gibt einen der DOC_TYPES zurueck.
-    Faellt bei wiederholten Gemini-Fehlern auf 'other' zurueck, statt die ganze
-    Indexing-Pipeline zu killen — ein einzelner unklassifizierter Chunk ist
-    weniger schlimm als ein verlorener Upload."""
+    """Schickt einen Text-Auszug an Gemini und gibt einen der DOC_TYPES zurueck.
+    Faellt bei Gemini-Fehlern auf 'other' zurueck statt die Indexing-Pipeline
+    zu killen — ein 'other'-Label ist weniger schlimm als ein verlorener Upload."""
     if not config.GOOGLE_API_KEY:
         return "other"
 
-    prompt = CLASSIFICATION_PROMPT.format(text=text[:3000])
+    prompt = CLASSIFICATION_PROMPT.format(text=text[:CLASSIFICATION_HEAD_CHARS])
 
     try:
-        raw = call_gemini_text(CLASSIFICATION_MODEL, prompt)
+        raw = call_gemini_text(config.CLASSIFICATION_MODEL, prompt)
     except Exception as err:
         print(f"[classification] Gemini call failed, falling back to 'other': {err}")
         return "other"
@@ -64,12 +63,19 @@ def classify_document(text: str) -> str:
 
 @component
 class DocumentClassifier:
-    """Haystack-Component die jeden Chunk einzeln klassifiziert. Wird in der
-    Indexing-Pipeline zwischen Docling-Converter und Embedder eingesetzt,
-    sodass jeder Chunk seinen eigenen doc_type in den Metadaten bekommt."""
+    """Haystack-Component die pro Pipeline-Run genau EINE Klassifikation macht
+    und das Ergebnis auf alle Chunks propagiert. Da `index_documents()` pro
+    Datei einen eigenen pipeline.run() ausfuehrt, entspricht ein Run hier
+    immer genau einem Dokument."""
 
     @component.output_types(documents=list[Document])
     def run(self, documents: list[Document]) -> dict:
+        if not documents:
+            return {"documents": documents}
+
+        head_text = " ".join(d.content for d in documents)[:CLASSIFICATION_HEAD_CHARS]
+        doc_type = classify_document(head_text)
+
         for doc in documents:
-            doc.meta["doc_type"] = classify_document(doc.content)
+            doc.meta["doc_type"] = doc_type
         return {"documents": documents}

@@ -1,7 +1,8 @@
 # Coverage-Scan fuer Tender-Anforderungen: pro Requirement RAG-Chunks ziehen
-# und Gemini bewerten lassen ob abdeckbar. Spiegelt company.scanner, schreibt
-# aber RequirementCoverage statt QuestionState.
+# und Gemini bewerten lassen ob abdeckbar. Parallelisiert ueber asyncio.gather
+# mit Semaphore-Limit aus config. Spiegelt company.scanner.
 
+import asyncio
 import json
 
 from llm_utils import call_gemini_json
@@ -108,27 +109,20 @@ def check_requirement(requirement: Requirement, company_id: str) -> RequirementC
     )
 
 
-def scan_requirements(
-    requirements: list[Requirement],
+async def check_requirement_async(
+    requirement: Requirement,
     company_id: str,
-    existing: dict[str, RequirementCoverage] | None = None,
-) -> dict[str, RequirementCoverage]:
-    """Scannt alle Requirements sequenziell. user_provided=True Eintraege werden
-    nicht ueberschrieben. Einzelne Fehler werden als 'missing' markiert."""
-    existing = existing or {}
-    result: dict[str, RequirementCoverage] = {}
-
-    for req in requirements:
-        prev = existing.get(req.id)
-        if prev and prev.user_provided:
-            result[req.id] = prev
-            continue
-
+    semaphore: asyncio.Semaphore,
+) -> RequirementCoverage:
+    """Async-Wrapper um check_requirement. Nutzt einen Semaphore-Slot und
+    laeuft im Worker-Thread, damit Event-Loop frei bleibt. Fehler werden
+    in eine 'missing'-Coverage gemappt."""
+    async with semaphore:
         try:
-            result[req.id] = check_requirement(req, company_id)
+            return await asyncio.to_thread(check_requirement, requirement, company_id)
         except Exception as err:
-            result[req.id] = RequirementCoverage(
-                requirement_id=req.id,
+            return RequirementCoverage(
+                requirement_id=requirement.id,
                 status="missing",
                 confidence=0.0,
                 evidence=None,
@@ -136,5 +130,3 @@ def scan_requirements(
                 user_provided=False,
                 notes=f"Scan-Fehler: {type(err).__name__}: {err}",
             )
-
-    return result
