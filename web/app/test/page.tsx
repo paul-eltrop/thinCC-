@@ -326,10 +326,10 @@ function CompanyCard() {
     <Card title={`Company Questions (${items.length})`}>
       <div className="mb-4 flex items-center gap-2">
         <PrimaryButton onClick={scanAll} disabled={scanning || loading}>
-          {scanning ? 'Scanne... (~30-60s)' : 'POST /company/scan'}
+          {scanning ? 'Scanning... (~30-60s)' : 'POST /company/scan'}
         </PrimaryButton>
         <SecondaryButton onClick={load} disabled={loading || scanning}>
-          {loading ? 'Lade...' : 'Reload'}
+          {loading ? 'Loading...' : 'Reload'}
         </SecondaryButton>
       </div>
 
@@ -357,7 +357,7 @@ function CompanyCard() {
                 <p className="mt-1 text-sm font-medium text-slate-900">{question.text}</p>
                 {state.answer && (
                   <p className="mt-1 text-xs text-slate-600">
-                    <span className="text-slate-400">Antwort:</span> {state.answer}
+                    <span className="text-slate-400">Answer:</span> {state.answer}
                   </p>
                 )}
                 {state.notes && (
@@ -370,7 +370,7 @@ function CompanyCard() {
                 </SecondaryButton>
                 {state.user_provided && (
                   <SecondaryButton onClick={() => deleteAnswer(question.id)} disabled={busyId === question.id}>
-                    Loeschen
+                    Delete
                   </SecondaryButton>
                 )}
               </div>
@@ -379,13 +379,13 @@ function CompanyCard() {
             <div className="mt-3 flex gap-2">
               <input
                 type="text"
-                placeholder="Antwort eingeben..."
+                placeholder="Enter answer..."
                 value={drafts[question.id] || ''}
                 onChange={(e) => setDrafts((d) => ({ ...d, [question.id]: e.target.value }))}
                 className="flex-1 rounded-full border border-white/60 bg-white/80 px-4 py-1.5 text-xs outline-none placeholder:text-slate-400 focus:bg-white"
               />
               <PrimaryButton onClick={() => saveAnswer(question.id)} disabled={busyId === question.id}>
-                Speichern
+                Save
               </PrimaryButton>
             </div>
           </div>
@@ -502,7 +502,7 @@ function ChatCard() {
     <Card title="Onboarding Chat">
       <div className="mb-3 flex items-center gap-2">
         <PrimaryButton onClick={startChat} disabled={streaming}>
-          Chat starten
+          Start chat
         </PrimaryButton>
         {streaming && (
           <SecondaryButton onClick={abort} disabled={false}>
@@ -511,7 +511,7 @@ function ChatCard() {
         )}
         {currentQuestionId && (
           <span className="text-[11px] text-slate-500">
-            aktuelle Frage: <span className="font-mono">{currentQuestionId}</span>
+            current question: <span className="font-mono">{currentQuestionId}</span>
           </span>
         )}
         {done && (
@@ -528,7 +528,7 @@ function ChatCard() {
         className="mb-3 h-80 space-y-3 overflow-y-auto rounded-2xl border border-white/60 bg-white/40 p-4"
       >
         {messages.length === 0 && (
-          <p className="text-xs text-slate-400">Noch keine Nachrichten. Klick auf "Chat starten".</p>
+          <p className="text-xs text-slate-400">No messages yet. Click "Start chat".</p>
         )}
         {messages.map((m, i) => (
           <div
@@ -547,7 +547,7 @@ function ChatCard() {
       <div className="flex gap-2">
         <input
           type="text"
-          placeholder="Antwort tippen..."
+          placeholder="Type your answer..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && sendAnswer()}
@@ -583,9 +583,9 @@ function RecommendationPill({ recommendation }: { recommendation: TenderRanking[
     no_go: 'bg-rose-100 text-rose-700',
   };
   const labels: Record<TenderRanking['recommendation'], string> = {
-    apply: 'Bewerben',
-    apply_with_input: 'Bewerben mit Input',
-    no_go: 'Nicht bewerben',
+    apply: 'Apply',
+    apply_with_input: 'Apply with input',
+    no_go: 'Do not apply',
   };
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${styles[recommendation]}`}>
@@ -886,7 +886,7 @@ function TenderCard() {
                   Recheck
                 </SecondaryButton>
                 <SecondaryButton onClick={() => deleteTender(tender.id)} disabled={busy}>
-                  Loeschen
+                  Delete
                 </SecondaryButton>
               </div>
             </div>
@@ -937,19 +937,19 @@ function TenderCard() {
           <div className="space-y-3 rounded-2xl border border-white/60 bg-white/40 p-4">
             <div className="flex flex-wrap items-center gap-2">
               <PrimaryButton onClick={startChat} disabled={chatStreaming || chatBlocked || busy}>
-                Tender-Chat starten
+                Start tender chat
               </PrimaryButton>
               <PrimaryButton onClick={endChat} disabled={chatStreaming || busy || !selectedId}>
-                Chat beenden + Promote
+                End chat + promote
               </PrimaryButton>
               {chatBlocked && (
                 <span className="text-[11px] text-rose-700">
-                  No-Go: kein Chat erlaubt.
+                  No-Go: chat not allowed.
                 </span>
               )}
               {currentReqId && (
                 <span className="text-[11px] text-slate-500">
-                  aktuelle Req: <span className="font-mono">{currentReqId}</span>
+                  current req: <span className="font-mono">{currentReqId}</span>
                 </span>
               )}
               {chatDone && (
@@ -965,7 +965,7 @@ function TenderCard() {
             >
               {chatMessages.length === 0 && (
                 <p className="text-xs text-slate-400">
-                  Klick "Tender-Chat starten" um Luecken zu fuellen.
+                  Click "Start tender chat" to fill the gaps.
                 </p>
               )}
               {chatMessages.map((m, i) => (
@@ -985,7 +985,7 @@ function TenderCard() {
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Antwort tippen..."
+                placeholder="Type your answer..."
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendChatAnswer()}

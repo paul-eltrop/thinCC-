@@ -13,32 +13,32 @@ ALLOWED_CATEGORIES = {"compliance", "experience", "team", "technical", "commerci
 ALLOWED_IMPORTANCE = {"critical", "high", "medium", "low"}
 ALLOWED_DOC_TYPES = {"cv", "reference_project", "methodology", "company_profile", "boilerplate", "qa_answer"}
 
-EXTRACTION_PROMPT = """Du bist ein erfahrener Bid Manager. Lies die folgende Ausschreibung
-und extrahiere alle konkreten Anforderungen an den Bewerber.
+EXTRACTION_PROMPT = """You are an experienced bid manager. Read the following
+tender and extract all concrete requirements imposed on the bidder.
 
-Regeln:
-- Extrahiere nur konkrete, pruefbare Anforderungen — keine allgemeinen Beschreibungen.
-- Eine Anforderung pro Eintrag, kurz und praezise formuliert.
-- Maximal 25 Anforderungen.
-- Bewerte die Wichtigkeit:
-  * "critical": MUSS-Kriterium / KO-Kriterium / Eignungskriterium / Pflichtangabe
-  * "high": stark gewichtetes Auswahlkriterium
-  * "medium": Standard-Anforderung
-  * "low": Nice-to-have
-- Setze "is_critical": true NUR wenn die Anforderung im Tender explizit als
-  KO-Kriterium, Pflichtangabe oder Mindestanforderung formuliert ist.
-- Kategorien:
-  * "compliance": Zertifikate, Recht, Datenschutz, Versicherung, Standort
-  * "experience": Referenzen, Vorprojekte, Branchenerfahrung
-  * "team": Personalstaerke, Qualifikationen, Sprachen, Verfuegbarkeit
-  * "technical": Methodik, Tools, technische Faehigkeiten
-  * "commercial": Preis, Konditionen, Vertragsmodell
-  * "other": passt in keine
-- "related_doc_types": Liste der internen Dokumenttypen die diese Anforderung
-  belegen koennten. Erlaubte Werte: cv, reference_project, methodology,
-  company_profile, boilerplate, qa_answer. Leer lassen wenn unklar.
+Rules:
+- Extract only concrete, verifiable requirements — no generic descriptions.
+- One requirement per entry, short and precisely phrased.
+- At most 25 requirements.
+- Rate importance:
+  * "critical": must-have / KO criterion / eligibility criterion / mandatory
+  * "high": heavily weighted selection criterion
+  * "medium": standard requirement
+  * "low": nice-to-have
+- Set "is_critical": true ONLY if the requirement is explicitly phrased in
+  the tender as a KO criterion, mandatory disclosure or minimum requirement.
+- Categories:
+  * "compliance": certificates, law, data protection, insurance, location
+  * "experience": references, prior projects, industry experience
+  * "team": headcount, qualifications, languages, availability
+  * "technical": methodology, tools, technical capabilities
+  * "commercial": price, conditions, contract model
+  * "other": fits nowhere else
+- "related_doc_types": list of internal document types that could support
+  this requirement. Allowed values: cv, reference_project, methodology,
+  company_profile, boilerplate, qa_answer. Leave empty if unclear.
 
-Antworte AUSSCHLIESSLICH als JSON-Objekt mit diesem Schema:
+Respond ONLY as a JSON object with this schema:
 {{
   "requirements": [
     {{
@@ -51,7 +51,7 @@ Antworte AUSSCHLIESSLICH als JSON-Objekt mit diesem Schema:
   ]
 }}
 
-Ausschreibung:
+Tender:
 ---
 {tender_text}
 ---"""

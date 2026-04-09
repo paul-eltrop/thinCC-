@@ -9,11 +9,11 @@ import traceback
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
+import config
 from auth import CurrentUser, current_user, supabase_service
-from classification import CLASSIFICATION_MODEL
 from document_store import delete_chunks_by_document_id
 from pipeline import index_documents
 
@@ -38,16 +38,16 @@ def _validate_extension(filename: str) -> str:
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Format {suffix} nicht unterstuetzt. Erlaubt: {sorted(ALLOWED_EXTENSIONS)}",
+            detail=f"Format {suffix} not supported. Allowed: {sorted(ALLOWED_EXTENSIONS)}",
         )
     return suffix
 
 
 def _validate_storage_path(storage_path: str, company_id: str) -> None:
     if not storage_path or "/" not in storage_path:
-        raise HTTPException(status_code=400, detail="Ungueltiger storage_path.")
+        raise HTTPException(status_code=400, detail="Invalid storage_path.")
     if storage_path.split("/", 1)[0] != company_id:
-        raise HTTPException(status_code=403, detail="storage_path liegt nicht im eigenen company-Bereich.")
+        raise HTTPException(status_code=403, detail="storage_path is not inside the caller's company area.")
 
 
 def _download_to_temp(storage_path: str, suffix: str) -> Path:
@@ -55,7 +55,7 @@ def _download_to_temp(storage_path: str, suffix: str) -> Path:
     try:
         data = storage.download(storage_path)
     except Exception as err:
-        raise HTTPException(status_code=404, detail=f"Datei nicht in Storage: {err}")
+        raise HTTPException(status_code=404, detail=f"File not in storage: {err}")
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     tmp.write(data)
@@ -90,18 +90,20 @@ def _insert_pending_row(
     return result.data[0] if result.data else row
 
 
-def _finalize_row(document_id: str, status: str, chunks_indexed: int, doc_type: str | None = None) -> dict:
-    update = {"status": status, "chunks_indexed": chunks_indexed}
+def _finalize_ready(document_id: str, chunks_indexed: int, doc_type: str | None) -> None:
+    update: dict = {"status": "ready", "chunks_indexed": chunks_indexed, "error_message": None}
     if doc_type:
         update["doc_type"] = doc_type
-    result = (
-        supabase_service()
-        .table("documents")
-        .update(update)
-        .eq("id", document_id)
-        .execute()
-    )
-    return result.data[0] if result.data else {}
+    supabase_service().table("documents").update(update).eq("id", document_id).execute()
+
+
+def _mark_failed(document_id: str, error_message: str) -> None:
+    update = {
+        "status": "failed",
+        "chunks_indexed": 0,
+        "error_message": error_message[:500],
+    }
+    supabase_service().table("documents").update(update).eq("id", document_id).execute()
 
 
 def _dominant_doc_type(classified) -> str:
@@ -114,9 +116,33 @@ def _dominant_doc_type(classified) -> str:
     return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
-@router.post("/index")
+def _run_indexing_job(tmp_path: Path, document_id: str, company_id: str) -> None:
+    """Background-Task: parsed, klassifiziert, embedded, schreibt nach Qdrant
+    und updated die documents-Row auf 'ready' oder 'failed'. Cleanupt das
+    Tempfile in jedem Fall."""
+    try:
+        result = index_documents(
+            [str(tmp_path)],
+            company_id=company_id,
+            document_id=document_id,
+        )
+        chunks = result["documents_written"]
+        if chunks == 0:
+            _mark_failed(document_id, "File contained no extractable text.")
+            return
+        doc_type = _dominant_doc_type(result.get("classified_documents", []))
+        _finalize_ready(document_id, chunks_indexed=chunks, doc_type=doc_type)
+    except Exception as err:
+        traceback.print_exc()
+        _mark_failed(document_id, f"{type(err).__name__}: {err}")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@router.post("/index", status_code=202)
 def index_storage_document(
     body: IndexBody,
+    background_tasks: BackgroundTasks,
     user: CurrentUser = Depends(current_user),
 ) -> dict:
     suffix = _validate_extension(body.filename)
@@ -135,31 +161,12 @@ def index_storage_document(
         file_size=body.file_size,
     )
 
-    try:
-        result = index_documents(
-            [str(tmp_path)],
-            company_id=user.company_id,
-            document_id=document_id,
-        )
-    except Exception as err:
-        traceback.print_exc()
-        _finalize_row(document_id, status="failed", chunks_indexed=0)
-        tmp_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail=f"Indexing fehlgeschlagen: {err}")
-
-    tmp_path.unlink(missing_ok=True)
-
-    chunks = result["documents_written"]
-    if chunks == 0:
-        _finalize_row(document_id, status="failed", chunks_indexed=0)
-        raise HTTPException(status_code=422, detail="Datei enthielt keinen extrahierbaren Text.")
-
-    doc_type = _dominant_doc_type(result.get("classified_documents", []))
-    finalized = _finalize_row(document_id, status="ready", chunks_indexed=chunks, doc_type=doc_type)
+    background_tasks.add_task(_run_indexing_job, tmp_path, document_id, user.company_id)
 
     return {
-        "document": finalized or {**pending, "status": "ready", "chunks_indexed": chunks, "doc_type": doc_type},
-        "classification_model": CLASSIFICATION_MODEL,
+        "document": pending,
+        "status": "indexing",
+        "classification_model": config.CLASSIFICATION_MODEL,
     }
 
 
@@ -177,9 +184,9 @@ def delete_document(
         .execute()
     )
     if not fetched.data:
-        raise HTTPException(status_code=404, detail=f"Document {document_id} nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Document {document_id} not found.")
     if fetched.data["company_id"] != user.company_id:
-        raise HTTPException(status_code=403, detail="Document gehoert einer anderen Company.")
+        raise HTTPException(status_code=403, detail="Document belongs to a different company.")
 
     storage_path = fetched.data.get("storage_path")
 
