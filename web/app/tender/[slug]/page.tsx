@@ -50,6 +50,8 @@ export default function TenderDetail() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('fit-check');
   const [deleting, setDeleting] = useState(false);
+  const [fitScore, setFitScore] = useState<number | null>(null);
+  const [showScoreWarning, setShowScoreWarning] = useState(false);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -72,7 +74,10 @@ export default function TenderDetail() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
-      setTender(await res.json());
+      const json = await res.json();
+      setTender(json);
+      if (json.ranking?.score != null) setFitScore(json.ranking.score);
+      else if (json.score != null) setFitScore(json.score);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -300,7 +305,13 @@ export default function TenderDetail() {
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => {
+                      if (tab.id === 'draft' && fitScore !== null && fitScore < 75) {
+                        setShowScoreWarning(true);
+                      } else {
+                        setActiveTab(tab.id);
+                      }
+                    }}
                     className={`pb-3 px-1 text-sm font-medium transition-colors ${
                       activeTab === tab.id
                         ? 'border-b-2 border-blue-500 text-blue-600'
@@ -355,35 +366,82 @@ export default function TenderDetail() {
             </div>
           )}
 
-          <div className="flex items-center gap-3 rounded-full border border-white/60 bg-white/80 px-3 py-2.5 shadow-[0_2px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
-              className="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 hover:text-slate-700 disabled:opacity-40"
-              title="Upload document"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
-            </button>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Upload documents or provide context to close gaps..."
-              className="flex-1 bg-transparent px-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </button>
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 items-center gap-3 rounded-full border border-white/60 bg-white/80 px-3 py-2.5 shadow-[0_2px_24px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 hover:text-slate-700 disabled:opacity-40"
+                title="Upload document"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Upload documents or provide context to close gaps..."
+                className="flex-1 bg-transparent px-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isLoading}
+                className="grid size-9 shrink-0 place-items-center rounded-full bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+            {activeTab === 'fit-check' && (
+              <button
+                onClick={() => {
+                  if (fitScore !== null && fitScore < 75) {
+                    setShowScoreWarning(true);
+                  } else {
+                    setActiveTab('draft');
+                  }
+                }}
+                className="shrink-0 whitespace-nowrap rounded-full bg-slate-900 px-5 py-3 text-xs font-medium text-white shadow-[0_2px_24px_rgba(15,23,42,0.08)] hover:bg-slate-800"
+              >
+                Go to Draft
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showScoreWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-md rounded-3xl border border-white/60 bg-white/90 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.1)] backdrop-blur-xl">
+            <div className="mb-4 flex items-center gap-3">
+              <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                Score: {Math.round(fitScore ?? 0)}
+              </span>
+              <h3 className="text-base font-semibold text-slate-900">Low Fit-Score</h3>
+            </div>
+            <p className="mb-6 text-sm text-slate-600">
+              Your fit score is below 75. We recommend closing more gaps before starting the draft.
+              Missing requirements may lead to a weaker proposal.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowScoreWarning(false)}
+                className="flex-1 rounded-full border border-white/60 bg-white/70 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-white"
+              >
+                Stay on Fit-Check
+              </button>
+              <button
+                onClick={() => { setShowScoreWarning(false); setActiveTab('draft'); }}
+                className="flex-1 rounded-full bg-amber-500 px-4 py-2 text-xs font-medium text-white hover:bg-amber-600"
+              >
+                Go to Draft anyway
+              </button>
+            </div>
           </div>
         </div>
       )}
