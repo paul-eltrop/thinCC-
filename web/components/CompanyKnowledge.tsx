@@ -336,6 +336,38 @@ function StatusPill({ status }: { status: Status }) {
 }
 
 function QuestionRow({ question, state }: { question: Question; state: QuestionState }) {
+  const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const showShare = state.status === 'missing' || state.status === 'partial';
+
+  async function handleShare() {
+    setSharing(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSharing(false); return; }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single();
+    if (!profile) { setSharing(false); return; }
+
+    const linkId = crypto.randomUUID().slice(0, 8);
+    await supabase.from('share_links').insert({
+      id: linkId,
+      company_id: profile.company_id,
+      welcome_message: question.text,
+      created_by: user.id,
+    });
+
+    const url = `${window.location.origin}/share/${linkId}`;
+    await navigator.clipboard.writeText(url);
+    setSharing(false);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-xl">
       <div className="flex items-start gap-3">
@@ -351,6 +383,15 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
             )}
           </p>
         </div>
+        {showShare && (
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="shrink-0 rounded-full border border-white/60 bg-white/70 px-3 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 disabled:opacity-50"
+          >
+            {copied ? 'Copied!' : sharing ? '...' : 'Share'}
+          </button>
+        )}
       </div>
     </div>
   );
