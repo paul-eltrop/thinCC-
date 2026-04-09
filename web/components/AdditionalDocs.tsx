@@ -32,7 +32,7 @@ export function AdditionalDocs({ documents, onUpdate }: AdditionalDocsProps) {
               </svg>
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-900">Tender-spezifische Dokumente hochladen</p>
+              <p className="text-sm font-medium text-slate-900">Upload tender-specific documents</p>
               <p className="text-xs text-slate-500">PDF, DOCX, TXT</p>
             </div>
             <button
@@ -48,7 +48,7 @@ export function AdditionalDocs({ documents, onUpdate }: AdditionalDocsProps) {
       {/* Info Text */}
       <div className="rounded-3xl border border-white/60 bg-blue-50/70 p-4 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
         <p className="text-sm text-slate-600">
-          Diese Dokumente gelten nur für diesen Tender. Allgemeine Firmendaten verwaltest du unter My Company.
+          These documents apply only to this tender. General company data is managed under My Company.
         </p>
       </div>
 
@@ -57,10 +57,10 @@ export function AdditionalDocs({ documents, onUpdate }: AdditionalDocsProps) {
         <div className="flex items-start gap-4">
           <div className="flex-1">
             <h3 className="text-base font-semibold text-slate-900 mb-2">Share Link</h3>
-            <p className="text-sm text-slate-600">Dir fehlen Daten? Schick einen Link an Kollegen.</p>
+            <p className="text-sm text-slate-600">Missing data? Send a link to colleagues.</p>
           </div>
           <button className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800">
-            Link kopieren
+            Copy link
           </button>
         </div>
       </div>
@@ -87,7 +87,7 @@ export function AdditionalDocs({ documents, onUpdate }: AdditionalDocsProps) {
                   onClick={() => handleMoveToKB(doc.id)}
                   className="text-xs text-slate-600 hover:text-slate-900 underline"
                 >
-                  In Knowledge Base übernehmen
+                  Move to Knowledge Base
                 </button>
                 <button className="text-slate-400 hover:text-slate-600">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -99,13 +99,13 @@ export function CompanyDocuments() {
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     if (!companyId) {
-      setError('Company-ID nicht geladen.');
+      setError('Company ID not loaded.');
       return;
     }
 
     for (const file of Array.from(files)) {
       if (!isAllowedFilename(file.name)) {
-        setError(`Format nicht unterstuetzt: ${file.name}`);
+        setError(`Unsupported format: ${file.name}`);
         continue;
       }
       await uploadOne(file, companyId);
@@ -126,7 +126,7 @@ export function CompanyDocuments() {
 
     if (storageErr) {
       setUploads((prev) => prev.filter((u) => u.id !== itemId));
-      setError(`Upload fehlgeschlagen (${file.name}): ${storageErr.message}`);
+      setError(`Upload failed (${file.name}): ${storageErr.message}`);
       return;
     }
 
@@ -145,7 +145,7 @@ export function CompanyDocuments() {
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
     } catch (err) {
-      setError(`Indexing-Start fehlgeschlagen (${file.name}): ${(err as Error).message}`);
+      setError(`Indexing start failed (${file.name}): ${(err as Error).message}`);
     } finally {
       setUploads((prev) => prev.filter((u) => u.id !== itemId));
       await loadDocuments(cid);
@@ -163,7 +163,7 @@ export function CompanyDocuments() {
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
     } catch (err) {
-      setError(`Loeschen fehlgeschlagen: ${(err as Error).message}`);
+      setError(`Delete failed: ${(err as Error).message}`);
     } finally {
       if (companyId) await loadDocuments(companyId);
     }
@@ -205,10 +205,10 @@ export function CompanyDocuments() {
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Lade Dokumente...</p>
+        <p className="text-sm text-slate-500">Loading documents...</p>
       ) : documents.length === 0 && uploads.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white/40 px-6 py-12 text-center">
-          <p className="text-sm text-slate-500">Noch keine Dokumente. Lade dein erstes hoch.</p>
+          <p className="text-sm text-slate-500">No documents yet. Upload your first one.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -273,7 +273,7 @@ function UploadingCard({ item }: { item: UploadingItem }) {
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-slate-900">{item.filename}</p>
-            <p className="text-[11px] text-slate-500">Hochladen...</p>
+            <p className="text-[11px] text-slate-500">Uploading...</p>
           </div>
         </div>
         <Spinner />
@@ -343,11 +343,11 @@ function DocumentCard({ doc, onDelete }: { doc: DocumentRow; onDelete: () => voi
         {new Date(doc.uploaded_at).toLocaleDateString()}
       </p>
       {isIndexing && (
-        <p className="mt-3 text-[11px] font-medium text-blue-600">Wird indexiert...</p>
+        <p className="mt-3 text-[11px] font-medium text-blue-600">Indexing...</p>
       )}
       {isFailed && (
         <div className="mt-3 space-y-1">
-          <p className="text-[11px] font-medium text-rose-600">Indexing fehlgeschlagen</p>
+          <p className="text-[11px] font-medium text-rose-600">Indexing failed</p>
           {doc.error_message && (
             <p className="text-[11px] text-rose-500/80 line-clamp-3">{doc.error_message}</p>
           )}
@@ -372,23 +372,23 @@ function DeleteModal({
         className="w-full max-w-sm rounded-3xl border border-white/60 bg-white p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-base font-semibold text-slate-900">Dokument loeschen?</h3>
+        <h3 className="text-base font-semibold text-slate-900">Delete document?</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Du loeschst <span className="font-semibold text-slate-900">{name}</span> aus Storage,
-          Datenbank und der Wissensbasis. Das kann nicht rueckgaengig gemacht werden.
+          You are deleting <span className="font-semibold text-slate-900">{name}</span> from storage,
+          the database and the knowledge base. This cannot be undone.
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
             className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
-            Abbrechen
+            Cancel
           </button>
           <button
             onClick={onConfirm}
             className="rounded-full bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
           >
-            Loeschen
+            Delete
           </button>
         </div>
       </div>

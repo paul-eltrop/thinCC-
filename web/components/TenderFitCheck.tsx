@@ -93,7 +93,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
 
   async function runScan() {
     if (scanning) return;
-    if (requirements.length > 0 && !confirm('Re-Scan ueberschreibt alle bisherigen Anforderungen + Antworten. Fortfahren?')) {
+    if (requirements.length > 0 && !confirm('Re-scan will overwrite all existing requirements and answers. Continue?')) {
       return;
     }
 
@@ -103,7 +103,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
     setRequirements([]);
     setCoverage({});
     setRanking(null);
-    setPhase({ step: 'parse', message: 'Starte Scan...' });
+    setPhase({ step: 'parse', message: 'Starting scan...' });
 
     try {
       const res = await apiFetch(`/tenders/${tenderId}/scan/stream`, { method: 'POST' });
@@ -111,7 +111,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
-      if (!res.body) throw new Error('Kein Stream-Body');
+      if (!res.body) throw new Error('No stream body');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -156,7 +156,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
             setScanStatus('completed');
             setProgress(100);
           } else if (currentEvent === 'error') {
-            setError(payload.message || 'Unbekannter Fehler');
+            setError(payload.message || 'Unknown error');
             setScanStatus('error');
           }
           currentEvent = null;
@@ -180,7 +180,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, current_requirement_id: reqId }),
       });
-      if (!res.body) throw new Error('Kein Stream-Body');
+      if (!res.body) throw new Error('No stream body');
 
       setChatMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
@@ -266,7 +266,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
       const res = await apiFetch(`/tenders/${tenderId}/promote`, { method: 'POST' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      alert(`${json.count} Antwort(en) ins Company-Wissen uebernommen.`);
+      alert(`${json.count} answer(s) promoted to company knowledge.`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -275,7 +275,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-500">Lade Fit-Check...</p>;
+    return <p className="text-sm text-slate-500">Loading fit check...</p>;
   }
 
   const counts = requirements.reduce(
@@ -314,9 +314,9 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
       <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Anforderungen</h3>
+            <h3 className="text-base font-semibold text-slate-900">Requirements</h3>
             <p className="mt-1 text-xs text-slate-500">
-              {requirements.length} extrahiert ·{' '}
+              {requirements.length} extracted ·{' '}
               <span className="text-emerald-700">{counts.covered || 0} covered</span> ·{' '}
               <span className="text-amber-700">{counts.partial || 0} partial</span> ·{' '}
               <span className="text-rose-700">{counts.missing || 0} missing</span>
@@ -327,7 +327,7 @@ export function TenderFitCheck({ tenderId }: { tenderId: string }) {
 
         {requirements.length === 0 ? (
           <p className="text-sm text-slate-500">
-            Noch keine Anforderungen. Starte einen Scan oben.
+            No requirements yet. Start a scan above.
           </p>
         ) : (
           <div className="space-y-2">
@@ -393,10 +393,10 @@ function ScoreHeroCard({
   const showScore = !scanning && ranking !== null;
   const recLabel = ranking?.recommendation
     ? ranking.recommendation === 'apply'
-      ? 'BEWERBEN'
+      ? 'APPLY'
       : ranking.recommendation === 'apply_with_input'
-        ? 'BEWERBEN MIT INPUT'
-        : 'NICHT BEWERBEN'
+        ? 'APPLY WITH INPUT'
+        : 'DO NOT APPLY'
     : null;
   const recColor = ranking?.recommendation === 'apply'
     ? 'bg-emerald-100 text-emerald-700'
@@ -422,10 +422,10 @@ function ScoreHeroCard({
             ) : scanning ? (
               <div className="text-center">
                 <div className="text-2xl font-semibold text-slate-900">{Math.round(progress)}%</div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Scanne</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Scanning</div>
               </div>
             ) : (
-              <div className="text-center text-xs text-slate-400">Noch kein Scan</div>
+              <div className="text-center text-xs text-slate-400">No scan yet</div>
             )}
           </div>
         </div>
@@ -440,7 +440,7 @@ function ScoreHeroCard({
               )}
               {ranking?.has_critical_gap && (
                 <span className="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
-                  KRITISCHE LUECKE
+                  CRITICAL GAP
                 </span>
               )}
             </div>
@@ -449,13 +449,13 @@ function ScoreHeroCard({
               disabled={!canScan}
               className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {scanning ? 'Scanne...' : hasRequirements ? 'Re-Scan' : 'Fit-Check starten'}
+              {scanning ? 'Scanning...' : hasRequirements ? 'Re-Scan' : 'Start Fit-Check'}
             </button>
           </div>
           <p className="text-sm text-slate-600">
             {ranking?.reasoning || (scanStatus === 'pending'
-              ? 'Klicke "Fit-Check starten" um die Anforderungen zu extrahieren und gegen das Company-Wissen zu pruefen.'
-              : 'Noch keine Bewertung verfuegbar.')}
+              ? 'Click "Start Fit-Check" to extract requirements and check them against your company knowledge.'
+              : 'No assessment available yet.')}
           </p>
         </div>
       </div>
@@ -484,7 +484,7 @@ function RequirementRow({ req, cov }: { req: Requirement; cov: Coverage | undefi
             {req.importance} · {req.category}
             {req.is_critical && (
               <span className="ml-2 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
-                kritisch
+                critical
               </span>
             )}
             {cov?.user_provided && (
@@ -539,9 +539,9 @@ function ChatPanel({
     <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Lueckenschluss-Chat</h3>
+          <h3 className="text-base font-semibold text-slate-900">Gap Closing Chat</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Beantworte offene Anforderungen direkt im Chat.
+            Answer open requirements directly in the chat.
           </p>
         </div>
         <div className="flex gap-2">
@@ -551,7 +551,7 @@ function ChatPanel({
               disabled={promoting}
               className="rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             >
-              {promoting ? 'Promote...' : 'Antworten fuers Unternehmen merken'}
+              {promoting ? 'Promoting...' : 'Save answers to company knowledge'}
             </button>
           )}
           {!chatOpen ? (
@@ -560,7 +560,7 @@ function ChatPanel({
               disabled={scanning || !canStart}
               className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Chat starten
+              Start chat
             </button>
           ) : (
             <button
@@ -568,7 +568,7 @@ function ChatPanel({
               disabled={chatStreaming}
               className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-50"
             >
-              Beenden
+              End chat
             </button>
           )}
         </div>
@@ -581,7 +581,7 @@ function ChatPanel({
             className="mb-3 h-80 space-y-3 overflow-y-auto rounded-2xl border border-white/60 bg-white/40 p-4"
           >
             {chatMessages.length === 0 && (
-              <p className="text-xs text-slate-400">Lade erste Frage...</p>
+              <p className="text-xs text-slate-400">Loading first question...</p>
             )}
             {chatMessages.map((m, i) => (
               <div
@@ -600,7 +600,7 @@ function ChatPanel({
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Antwort tippen..."
+              placeholder="Type your answer..."
               value={chatInput}
               onChange={(e) => onInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onSend()}
@@ -612,7 +612,7 @@ function ChatPanel({
               disabled={chatStreaming || chatDone || !chatInput.trim() || !currentReqId}
               className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Senden
+              Send
             </button>
           </div>
         </>

@@ -79,7 +79,7 @@ export function CompanyTeam() {
   }
 
   async function deleteMember(id: string) {
-    if (!confirm('Mitarbeiter wirklich loeschen?')) return;
+    if (!confirm('Delete this team member?')) return;
     setError(null);
     try {
       const res = await apiFetch(`/team/${id}`, { method: 'DELETE' });
@@ -116,7 +116,7 @@ export function CompanyTeam() {
     setScanning(true);
     setScanFound(0);
     setError(null);
-    setScanPhase({ step: 'start', message: 'Starte Scan...' });
+    setScanPhase({ step: 'start', message: 'Starting scan...' });
 
     try {
       const res = await apiFetch('/team/scan/stream', { method: 'POST' });
@@ -124,7 +124,7 @@ export function CompanyTeam() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
-      if (!res.body) throw new Error('Kein Stream-Body');
+      if (!res.body) throw new Error('No stream body');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -155,7 +155,7 @@ export function CompanyTeam() {
             setMembers((prev) => [...prev, payload.member as Member]);
             setScanFound((n) => n + 1);
           } else if (currentEvent === 'error') {
-            setError(payload.message || 'Unbekannter Fehler');
+            setError(payload.message || 'Unknown error');
           }
           currentEvent = null;
         }
@@ -179,8 +179,8 @@ export function CompanyTeam() {
           <div>
             <h3 className="text-base font-semibold text-slate-900">Team</h3>
             <p className="mt-1 text-xs text-slate-500">
-              {members.length} Mitarbeiter ·{' '}
-              <span className="text-emerald-700">{withCv} mit CV</span>
+              {members.length} members ·{' '}
+              <span className="text-emerald-700">{withCv} with CV</span>
             </p>
           </div>
           <div className="flex gap-2">
@@ -189,14 +189,14 @@ export function CompanyTeam() {
               disabled={locked}
               className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-50"
             >
-              Mitarbeiter hinzufuegen
+              Add member
             </button>
             <button
               onClick={runScan}
               disabled={locked || loading}
               className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {scanning ? 'Scanne...' : 'RAG scannen'}
+              {scanning ? 'Scanning...' : 'RAG scan'}
             </button>
           </div>
         </div>
@@ -213,7 +213,7 @@ export function CompanyTeam() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <p className="text-sm font-medium text-slate-900">{scanPhase.message}</p>
             <span className="text-xs font-semibold text-slate-600">
-              {scanFound} neue Mitarbeiter
+              {scanFound} new members found
             </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-slate-200/70">
@@ -223,11 +223,11 @@ export function CompanyTeam() {
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Lade Team...</p>
+        <p className="text-sm text-slate-500">Loading team...</p>
       ) : members.length === 0 ? (
         <div className="rounded-3xl border border-white/60 bg-white/70 p-8 text-center backdrop-blur-xl">
           <p className="text-sm text-slate-500">
-            Noch keine Mitarbeiter. Fuege manuell welche hinzu oder scanne den RAG.
+            No team members yet. Add them manually or run a RAG scan.
           </p>
         </div>
       ) : (
@@ -287,7 +287,7 @@ function MemberRow({
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-slate-900">{member.name}</p>
             <p className="truncate text-xs text-slate-500">
-              {member.role || 'Keine Rolle'}
+              {member.role || 'No role'}
               {member.seniority && (
                 <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-blue-700">
                   {member.seniority}
@@ -312,14 +312,14 @@ function MemberRow({
             }`}
             title={member.cv_document_name || ''}
           >
-            {hasCv ? 'CV vorhanden' : 'kein CV'}
+            {hasCv ? 'CV linked' : 'no CV'}
             <span className="text-[9px]">▼</span>
           </button>
           <button
             onClick={onDelete}
             disabled={locked}
             className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-            aria-label="Loeschen"
+            aria-label="Delete"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
@@ -331,11 +331,11 @@ function MemberRow({
                 onClick={() => onPickCv(null)}
                 className="block w-full px-4 py-2.5 text-left text-xs text-slate-600 hover:bg-slate-50"
               >
-                Kein CV
+                No CV
               </button>
               {cvOptions.length === 0 ? (
                 <p className="px-4 py-2.5 text-xs text-slate-400">
-                  Keine CV-Dokumente hochgeladen
+                  No CV documents uploaded
                 </p>
               ) : (
                 cvOptions.map((opt) => (
@@ -374,7 +374,7 @@ function AddModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white/95 p-6 shadow-[0_8px_48px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-        <h3 className="mb-4 text-base font-semibold text-slate-900">Mitarbeiter hinzufuegen</h3>
+        <h3 className="mb-4 text-base font-semibold text-slate-900">Add team member</h3>
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Name</label>
@@ -387,7 +387,7 @@ function AddModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Rolle</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">Role</label>
             <input
               type="text"
               value={role}
@@ -416,14 +416,14 @@ function AddModal({
             onClick={onClose}
             className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-white"
           >
-            Abbrechen
+            Cancel
           </button>
           <button
             onClick={() => name.trim() && onSubmit(name.trim(), role.trim(), seniority)}
             disabled={!name.trim()}
             className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            Hinzufuegen
+            Add
           </button>
         </div>
       </div>

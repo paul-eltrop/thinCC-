@@ -45,7 +45,7 @@ export function TenderExportWrapper({ tenderId }: { tenderId: string }) {
   }, [loadTender]);
 
   if (loading) {
-    return <p className="text-sm text-slate-500">Lade Export...</p>;
+    return <p className="text-sm text-slate-500">Loading export...</p>;
   }
 
   if (error) {
@@ -60,7 +60,7 @@ export function TenderExportWrapper({ tenderId }: { tenderId: string }) {
     return (
       <div className="rounded-3xl border border-white/60 bg-white/70 p-12 text-center backdrop-blur-xl">
         <p className="text-sm text-slate-500">
-          Noch kein Proposal-Draft vorhanden. Wechsel zum Draft-Tab und generiere einen.
+          No proposal draft yet. Switch to the Draft tab and generate one.
         </p>
       </div>
     );
