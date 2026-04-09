@@ -87,7 +87,7 @@ export function DraftView({ tenderId, hasParsedText, sections, onSectionsChange,
 
   const generateDraft = async () => {
     if (!hasParsedText) return;
-    if (sections.length > 0 && !confirm('Aktueller Draft wird komplett ersetzt. Fortfahren?')) {
+    if (sections.length > 0 && !confirm('Current draft will be completely replaced. Continue?')) {
       return;
     }
 
@@ -136,19 +136,19 @@ export function DraftView({ tenderId, hasParsedText, sections, onSectionsChange,
 
   const handleSelectionAction = (selection: TextSelection, action: SelectionAction) => {
     const section = sections.find((s) => s.id === selection.sectionId);
-    const sectionLabel = section ? `"${section.title}"` : 'der markierten Stelle';
+    const sectionLabel = section ? `"${section.title}"` : 'the selected text';
 
     if (action === 'improve') {
       chatRef.current?.sendMessage(
-        `Verbessere folgenden Abschnitt aus ${sectionLabel}:\n\n"${selection.text}"`
+        `Improve the following section from ${sectionLabel}:\n\n"${selection.text}"`
       );
     } else if (action === 'summarize') {
       chatRef.current?.sendMessage(
-        `Fasse folgenden Abschnitt aus ${sectionLabel} kuerzer zusammen:\n\n"${selection.text}"`
+        `Summarize the following section from ${sectionLabel}:\n\n"${selection.text}"`
       );
     } else {
       chatRef.current?.prefillInput(
-        `Bezueglich ${sectionLabel}: "${selection.text}"\n\n`
+        `Regarding ${sectionLabel}: "${selection.text}"\n\n`
       );
     }
   };
@@ -164,8 +164,8 @@ export function DraftView({ tenderId, hasParsedText, sections, onSectionsChange,
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           </div>
-          <p className="text-sm font-medium text-slate-700">Tender noch nicht geparsed</p>
-          <p className="text-xs text-slate-500">Starte zuerst im Fit-Check Tab den Scan, dann steht der parsed Text fuer den Draft bereit.</p>
+          <p className="text-sm font-medium text-slate-700">Tender not yet parsed</p>
+          <p className="text-xs text-slate-500">Start a scan in the Fit-Check tab first, then the parsed text will be available for drafting.</p>
         </div>
       </div>
     );
