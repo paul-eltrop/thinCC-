@@ -341,28 +341,14 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
   const [shareError, setShareError] = useState<string | null>(null);
   const showShare = state.status === 'missing' || state.status === 'partial';
 
-  async function copyToClipboard(url: string): Promise<boolean> {
-    try {
-      await navigator.clipboard.writeText(url);
-      return true;
-    } catch {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-        return ok;
-      } catch {
-        return false;
-      }
-    }
-  }
-
   async function handleShare() {
+    const linkId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+    const url = `${window.location.origin}/share/${linkId}`;
+
+    const copyPromise = navigator.clipboard
+      ? navigator.clipboard.writeText(url).then(() => true).catch(() => false)
+      : Promise.resolve(false);
+
     setSharing(true);
     setShareError(null);
     const supabase = createClient();
@@ -386,7 +372,6 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
       return;
     }
 
-    const linkId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
     const { error: insertError } = await supabase.from('share_links').insert({
       id: linkId,
       company_id: profile.company_id,
@@ -399,8 +384,7 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
       return;
     }
 
-    const url = `${window.location.origin}/share/${linkId}`;
-    const copyOk = await copyToClipboard(url);
+    const copyOk = await copyPromise;
 
     setSharing(false);
     if (copyOk) {
