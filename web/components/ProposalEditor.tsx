@@ -202,7 +202,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <div className="flex items-center gap-2">
             <div className="size-3 rounded-full border-2 border-blue-200 border-t-blue-500 animate-spin" />
-            <span className="text-xs font-medium text-slate-500">Proposal wird generiert...</span>
+            <span className="text-xs font-medium text-slate-500">Generating proposal...</span>
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -211,7 +211,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
               <div className="absolute inset-0 rounded-full border-2 border-slate-200" />
               <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-blue-500" />
             </div>
-            <p className="text-sm font-medium text-slate-700">RAG-Kontext wird abgerufen...</p>
+            <p className="text-sm font-medium text-slate-700">Retrieving RAG context...</p>
           </div>
         </div>
       </div>
@@ -271,7 +271,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Kopiert
+                Copied
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
@@ -279,7 +279,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
-                Kopieren
+                Copy
               </span>
             )}
           </button>
@@ -287,7 +287,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
             onClick={onRegenerate}
             disabled={!hasTender}
             className="rounded-full p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
-            title="Neu generieren"
+            title="Regenerate"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="23 4 23 10 17 10" />
@@ -297,7 +297,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
           <button
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-            title="Schliessen"
+            title="Close"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -370,7 +370,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
                         onClick={() => setEditingSection(null)}
                         className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-white hover:bg-slate-800"
                       >
-                        Fertig
+                        Done
                       </button>
                       <button
                         onClick={() => {
@@ -379,7 +379,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
                         }}
                         className="rounded-full px-3 py-1 text-[11px] font-medium text-rose-500 hover:text-rose-700"
                       >
-                        Entfernen
+                        Remove
                       </button>
                     </div>
                   </div>
@@ -397,7 +397,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
               onClick={() => {
                 const newSection: ProposalSection = {
                   id: `section-${Date.now()}`,
-                  title: 'Neue Section',
+                  title: 'New Section',
                   content: '',
                 };
                 onSectionsChange([...sections, newSection]);
@@ -408,7 +408,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              Section hinzufuegen
+              Add section
             </button>
           </div>
         )}
@@ -436,7 +436,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
             </svg>
-            Verbessern
+            Improve
           </button>
           <button
             onClick={() => {
@@ -449,7 +449,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="21" y1="10" x2="7" y2="10" /><line x1="21" y1="6" x2="3" y2="6" /><line x1="21" y1="14" x2="3" y2="14" /><line x1="21" y1="18" x2="7" y2="18" />
             </svg>
-            Zusammenfassen
+            Summarize
           </button>
           <button
             onClick={() => {
@@ -462,7 +462,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            Im Chat bearbeiten
+            Edit in chat
           </button>
         </div>
       )}

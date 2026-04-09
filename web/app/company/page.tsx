@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { CompanyDocuments } from '@/components/CompanyDocuments';
 import { CompanyKnowledge } from '@/components/CompanyKnowledge';
@@ -43,6 +43,12 @@ export default function MyCompany() {
             <span className="text-sm font-medium text-slate-900">
               My Company
             </span>
+            <Link
+              href="/analytics"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Analytics
+            </Link>
           </nav>
         </div>
       </header>

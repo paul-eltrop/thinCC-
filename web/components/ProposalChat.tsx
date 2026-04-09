@@ -75,7 +75,7 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
       } catch (err) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `Fehler: ${(err as Error).message}` },
+          { role: 'assistant', content: `Error: ${(err as Error).message}` },
         ]);
       } finally {
         setIsLoading(false);
@@ -100,10 +100,10 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
 
     const suggestions = hasDraft
       ? [
-          'Verbessere die Executive Summary',
-          'Schreibe die Methodology detaillierter',
-          'Welche Luecken hat der Draft?',
-          'Formuliere Section 3 ueberzeugender',
+          'Improve the Executive Summary',
+          'Write the Methodology in more detail',
+          'What gaps does the draft have?',
+          'Make Section 3 more convincing',
         ]
       : [];
 
@@ -118,7 +118,7 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
           <div>
             <p className="text-sm font-semibold text-slate-900">Proposal Assistant</p>
             <p className="text-[10px] text-slate-500">
-              {hasDraft ? 'Stelle Fragen oder markiere Text im Dokument' : 'Erstelle einen Draft um loszulegen'}
+              {hasDraft ? 'Ask questions or select text in the document' : 'Create a draft to get started'}
             </p>
           </div>
         </div>
@@ -135,9 +135,9 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
                 </svg>
               </div>
               <div className="text-center space-y-2">
-                <p className="text-sm font-medium text-slate-700">Proposal Draft erstellen</p>
+                <p className="text-sm font-medium text-slate-700">Create Proposal Draft</p>
                 <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-                  Generiere einen Draft basierend auf der Ausschreibung oder starte mit einer leeren Vorlage.
+                  Generate a draft based on the tender or start with an empty template.
                 </p>
               </div>
               <div className="flex items-center gap-3 mt-2">
@@ -149,10 +149,10 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
                   {isGenerating ? (
                     <span className="flex items-center gap-2">
                       <span className="size-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                      Generiert...
+                      Generating...
                     </span>
                   ) : (
-                    'Draft generieren'
+                    'Generate draft'
                   )}
                 </button>
                 <button
@@ -160,7 +160,7 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
                   disabled={isGenerating}
                   className="rounded-full border border-white/60 bg-white/70 px-5 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-900 disabled:opacity-40 transition-colors"
                 >
-                  Leerer Draft
+                  Empty draft
                 </button>
               </div>
             </div>
@@ -169,7 +169,7 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
           {hasDraft && messages.length === 0 && (
             <div className="space-y-4 pt-8">
               <p className="text-sm text-slate-500 text-center leading-relaxed">
-                Beschreibe was du aendern moechtest — oder markiere Text im Dokument rechts.
+                Describe what you want to change — or select text in the document on the right.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {suggestions.map((suggestion) => (
@@ -219,7 +219,7 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={hasDraft ? 'z.B. "Verbessere die Executive Summary"...' : 'Stelle eine Frage zur Ausschreibung...'}
+              placeholder={hasDraft ? 'e.g. "Improve the Executive Summary"...' : 'Ask a question about the tender...'}
               rows={2}
               className="flex-1 resize-none bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
             />

@@ -73,7 +73,7 @@ export function NewTenderModal({ isOpen, onClose, onCreated }: NewTenderModalPro
     e.preventDefault();
     if (!name.trim() || !file) return;
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Nur PDF-Dateien werden unterstuetzt.');
+      setError('Only PDF files are supported.');
       return;
     }
 
@@ -83,19 +83,19 @@ export function NewTenderModal({ isOpen, onClose, onCreated }: NewTenderModalPro
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Nicht eingeloggt.');
+      if (!user) throw new Error('Not logged in.');
       const { data: profile } = await supabase
         .from('profiles')
         .select('company_id')
         .eq('id', user.id)
         .single();
-      if (!profile?.company_id) throw new Error('Company-ID nicht gefunden.');
+      if (!profile?.company_id) throw new Error('Company ID not found.');
 
       const path = `${profile.company_id}/${crypto.randomUUID()}-${file.name}`;
       const { error: storageErr } = await supabase.storage
         .from(TENDER_BUCKET)
         .upload(path, file, { upsert: false, contentType: 'application/pdf' });
-      if (storageErr) throw new Error(`Upload fehlgeschlagen: ${storageErr.message}`);
+      if (storageErr) throw new Error(`Upload failed: ${storageErr.message}`);
 
       const res = await apiFetch('/tenders', {
         method: 'POST',
@@ -124,7 +124,7 @@ export function NewTenderModal({ isOpen, onClose, onCreated }: NewTenderModalPro
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={close} title="Neuer Tender">
+    <Modal isOpen={isOpen} onClose={close} title="New Tender">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">Name</label>
@@ -132,13 +132,13 @@ export function NewTenderModal({ isOpen, onClose, onCreated }: NewTenderModalPro
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="z.B. Stadtbibliothek Muenchen 2026"
+            placeholder="e.g. City Library Munich 2026"
             required
             className="w-full rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-sm outline-none focus:bg-white"
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Kunde</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Client</label>
           <input
             type="text"
             value={client}
@@ -184,14 +184,14 @@ export function NewTenderModal({ isOpen, onClose, onCreated }: NewTenderModalPro
             disabled={submitting}
             className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50"
           >
-            Abbrechen
+            Cancel
           </button>
           <button
             type="submit"
             disabled={submitting || !name.trim() || !file}
             className="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            {submitting ? 'Lade hoch...' : 'Erstellen'}
+            {submitting ? 'Uploading...' : 'Create'}
           </button>
         </div>
       </form>
