@@ -99,46 +99,86 @@ def _format_open_list(open_list: list[Question]) -> str:
     return "\n".join(f"- [{q.importance}] {q.text}" for q in open_list)
 
 
+def _format_all_questions_with_status(
+    questions: list[Question],
+    state: dict[str, QuestionState],
+) -> str:
+    if not questions:
+        return "(keine Fragen definiert)"
+
+    lines = []
+    for q in questions:
+        qs = state.get(q.id)
+        status = "offen"
+        if qs and qs.status == "covered":
+            status = "beantwortet"
+        elif qs and qs.status:
+            status = qs.status
+        lines.append(f"- [{q.importance}] {q.text} — {status}")
+
+    return "\n".join(lines)
+
+
+def _format_current_knowledge(state: dict[str, QuestionState]) -> str:
+    lines = []
+    for qs in state.values():
+        if qs and qs.answer:
+            lines.append(f"- {qs.answer.strip()}")
+
+    if not lines:
+        return "(keine aktuellen Kenntnisse)"
+    return "\n".join(lines)
+
+
 def build_system_prompt(
     question: Question,
+    questions: list[Question],
     open_list: list[Question],
     rag_hints: list[Document],
     state: dict[str, QuestionState],
 ) -> str:
-    qs = state.get(question.id)
-    notes = qs.notes if qs and qs.notes else "(keine)"
-    remaining = len(open_list)
+    total = len(questions)
+    answered_count = sum(1 for qs in state.values() if qs and qs.status == "covered")
+    open_count = len(open_list)
 
-    return f"""Du bist ein freundlicher Onboarding-Agent fuer ein Beratungsunternehmen.
-Deine Aufgabe ist es, fehlende Informationen ueber die Firma zu sammeln, damit
-sie sich auf Tender bewerben kann. Du fuehrst den User durch eine Liste offener
-Fragen — eine nach der anderen.
+    return f"""Du bist ein Business-Analyst der ein Beratungsunternehmen onboardet.
+Dein Ziel: das Unternehmen so gut verstehen, dass du für jede
+Ausschreibung die passende Bewerbung schreiben könntest.
+
+ABLAUF:
+1. OFFENER START — Starte mit einer breiten, offenen Frage. Lass den
+   User frei erzählen. Extrahiere daraus so viele Antworten wie möglich.
+2. CLUSTER-FOLLOW-UPS — Gruppiere offene Fragen thematisch. Stelle
+   pro Themenblock eine zusammenfassende Frage, nicht Einzelfragen.
+3. GEZIELTE LÜCKEN — Stelle Einzelfragen nur für kritische Infos
+   die du nicht ableiten konntest.
 
 REGELN:
-- Stelle IMMER nur EINE Frage pro Nachricht.
-- Sei kurz, freundlich, professionell. Keine langen Vortraege.
-- Wenn du in der Wissensbasis schon Hinweise findest, formuliere die Frage
-  als Verifikation: "Ich habe gefunden, dass ihr X. Stimmt das noch?"
-- Wenn die Wissensbasis nichts hergibt, stelle die Frage offen.
-- Erwaehne kurz wieviele Fragen noch ausstehen, damit der User Orientierung hat.
-- Wenn der User mit deiner Frage fertig ist, kommt die naechste Frage automatisch
-  im naechsten Turn — du musst nicht "weiter?" fragen.
+- Frage NIEMALS etwas, das du aus dem bisherigen Gespräch oder der
+  Wissensbasis ableiten kannst. Bestätige stattdessen: "Ich habe
+  verstanden dass ihr X. Korrekt?"
+- Fasse nach jeder User-Antwort kurz zusammen was du gelernt hast
+  und welche Bereiche noch offen sind.
+- Zeig Fortschritt: "Ich habe jetzt ein gutes Bild von eurer Firma,
+  Methodik, und eurem Team. Mir fehlen noch Details zu Referenzen
+  und Compliance."
+- Wenn der User ein Dokument hochlädt, parse es zuerst und stelle
+  nur Fragen zu dem was das Dokument NICHT abdeckt.
+- Sei conversational, nicht interrogativ. Kein Verhör-Modus.
 
-KONTEXT:
-Noch offene Fragen ({remaining} insgesamt):
-{_format_open_list(open_list)}
+FRAGEN-DATENBANK:
+Die folgenden {total} Fragen müssen am Ende beantwortet sein.
+Bereits beantwortet: {answered_count}
+Offen: {open_count}
 
-AKTUELLE FRAGE (die du jetzt stellen sollst):
-ID: {question.id}
-Importance: {question.importance}
-Frage: {question.text}
-Scanner-Notes: {notes}
+{_format_all_questions_with_status(questions, state)}
 
-VORWISSEN aus der Wissensbasis fuer diese Frage:
-{_format_hints(rag_hints)}
+BISHERIGES WISSEN:
+{_format_current_knowledge(state)}
 
-Stelle jetzt die aktuelle Frage in einem Satz, ggf. mit Verifikations-Hinweis
-falls oben Vorwissen steht."""
+Entscheide selbst welche Frage(n) du als nächstes adressierst und
+ob du sie einzeln oder als Cluster stellst. Priorisiere nach
+Importance."""
 
 
 def _persist_user_answer(company_id: str, question_id: str, answer: str) -> None:
@@ -181,7 +221,7 @@ def prepare_turn(
 
     open_list = open_questions(state, questions)
     rag_hints = gather_rag_hints(next_question, company_id)
-    system_prompt = build_system_prompt(next_question, open_list, rag_hints, state)
+    system_prompt = build_system_prompt(next_question, questions, open_list, rag_hints, state)
 
     return NextTurn(
         current_question_id=next_question.id,

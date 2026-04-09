@@ -158,20 +158,26 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
     if (!previewRef.current) return;
     setIsExporting(true);
 
-    const html2pdf = (await import('html2pdf.js')).default;
-    const filename = `Proposal_${tenderName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    try {
+      // Dynamic import nur im Browser möglich
+      const { default: html2pdf } = await import('html2pdf.js');
+      const filename = `Proposal_${tenderName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-    const opts: Record<string, unknown> = {
-      margin: [15, 15, 15, 15],
-      filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    };
-    await html2pdf().set(opts).from(previewRef.current).save();
-
-    setIsExporting(false);
+      const opts: Record<string, unknown> = {
+        margin: [15, 15, 15, 15],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      };
+      await html2pdf().set(opts).from(previewRef.current).save();
+    } catch (error) {
+      console.error('PDF-Export fehlgeschlagen:', error);
+      alert('PDF-Export konnte nicht abgeschlossen werden. Bitte versuchen Sie es später erneut.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!hasSections) {
