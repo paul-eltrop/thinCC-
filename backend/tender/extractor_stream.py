@@ -3,9 +3,12 @@
 # Echtzeit eine wachsende Tabelle mit extrahierten Anforderungen.
 
 import json
+import time
 from typing import Iterator
 
-from llm_utils import gemini_client
+from google.genai import errors as genai_errors
+
+from llm_utils import MAX_LLM_RETRIES, RETRY_BASE_DELAY, gemini_client
 
 EXTRACTOR_MODEL = "gemini-2.5-flash"
 MAX_TENDER_CHARS = 60000
@@ -67,10 +70,25 @@ def stream_requirements(parsed_text: str) -> Iterator[dict]:
     prompt = EXTRACTION_PROMPT.format(tender_text=truncated)
 
     client = gemini_client()
-    response_stream = client.models.generate_content_stream(
-        model=EXTRACTOR_MODEL,
-        contents=prompt,
-    )
+
+    response_stream = None
+    last_error: Exception | None = None
+    for attempt in range(MAX_LLM_RETRIES):
+        try:
+            response_stream = client.models.generate_content_stream(
+                model=EXTRACTOR_MODEL,
+                contents=prompt,
+            )
+            break
+        except genai_errors.ServerError as err:
+            last_error = err
+            if attempt < MAX_LLM_RETRIES - 1:
+                time.sleep(RETRY_BASE_DELAY * (2 ** attempt))
+                continue
+            raise
+
+    if response_stream is None:
+        raise last_error if last_error else RuntimeError("Failed to initialise Gemini stream.")
 
     buffer = ""
     for chunk in response_stream:
