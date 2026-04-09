@@ -16,7 +16,7 @@ export function TenderCard({ tender, isNewCard, onClick }: TenderCardProps) {
     return (
       <div
         onClick={onClick}
-        className="group cursor-pointer rounded-3xl border-2 border-dashed border-slate-300 bg-white/30 p-6 transition-all hover:border-slate-400 hover:bg-white/50"
+        className="group h-full cursor-pointer rounded-3xl border-2 border-dashed border-slate-300 bg-white/30 p-6 transition-all hover:border-slate-400 hover:bg-white/50"
       >
         <div className="flex flex-col items-center justify-center gap-4 text-center">
           <div className="grid size-12 place-items-center rounded-2xl bg-slate-100 text-slate-400 group-hover:bg-slate-200">
@@ -66,7 +66,7 @@ export function TenderCard({ tender, isNewCard, onClick }: TenderCardProps) {
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-all hover:shadow-[0_2px_32px_rgba(15,23,42,0.08)]"
+      className="h-full cursor-pointer rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-all hover:shadow-[0_2px_32px_rgba(15,23,42,0.08)]"
     >
       <div className="flex items-start gap-4">
         <div className={`grid size-12 shrink-0 place-items-center rounded-2xl text-white ${getInitialColor(tender.name)}`}>
