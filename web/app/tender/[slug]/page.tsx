@@ -60,7 +60,7 @@ export default function TenderDetail() {
 
   async function handleDelete() {
     if (!tender) return;
-    if (!confirm(`Tender "${tender.name}" wirklich loeschen?`)) return;
+    if (!confirm(`Really delete tender "${tender.name}"?`)) return;
     setDeleting(true);
     try {
       const res = await apiFetch(`/tenders/${tender.id}`, { method: 'DELETE' });
@@ -91,6 +91,9 @@ export default function TenderDetail() {
             <Link href="/company" className="text-sm font-medium text-slate-600 hover:text-slate-900">
               My Company
             </Link>
+            <Link href="/analytics" className="text-sm font-medium text-slate-600 hover:text-slate-900">
+              Analytics
+            </Link>
           </nav>
         </div>
       </header>
@@ -98,23 +101,23 @@ export default function TenderDetail() {
       <main className="px-8 pb-8">
         <div className="mx-auto max-w-6xl">
           {loading ? (
-            <p className="text-sm text-slate-500">Lade Tender...</p>
+            <p className="text-sm text-slate-500">Loading tender...</p>
           ) : error ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
               {error}
             </div>
           ) : !tender ? (
-            <p className="text-sm text-slate-500">Tender nicht gefunden.</p>
+            <p className="text-sm text-slate-500">Tender not found.</p>
           ) : (
             <>
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                   <Link href="/" className="text-xs text-slate-500 hover:text-slate-700">
-                    ← Zurueck zu Tenders
+                    ← Back to tenders
                   </Link>
                   <h2 className="mt-2 text-2xl font-semibold text-slate-900">{tender.name}</h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    {tender.client || 'Kein Kunde angegeben'}
+                    {tender.client || 'No client specified'}
                     {tender.deadline && ` · Deadline: ${tender.deadline}`}
                   </p>
                 </div>
@@ -123,7 +126,7 @@ export default function TenderDetail() {
                   disabled={deleting}
                   className="rounded-full border border-rose-200 bg-rose-50 px-4 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
                 >
-                  Loeschen
+                  Delete
                 </button>
               </div>
 
@@ -159,7 +162,7 @@ function OverviewTab({ tender }: { tender: TenderRow }) {
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-        <h3 className="mb-4 text-base font-semibold text-slate-900">Tender-Dokument</h3>
+        <h3 className="mb-4 text-base font-semibold text-slate-900">Tender document</h3>
         <div className="flex items-center gap-4">
           <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-600">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -168,7 +171,7 @@ function OverviewTab({ tender }: { tender: TenderRow }) {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-900">{tender.filename || 'Keine Datei'}</p>
+            <p className="truncate text-sm font-medium text-slate-900">{tender.filename || 'No file'}</p>
             <p className="text-xs text-slate-500">
               {tender.file_size ? `${(tender.file_size / 1024).toFixed(0)} KB · ` : ''}
               Status: {tender.status}
@@ -178,14 +181,14 @@ function OverviewTab({ tender }: { tender: TenderRow }) {
       </div>
 
       <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-        <h3 className="mb-4 text-base font-semibold text-slate-900">Metadaten</h3>
+        <h3 className="mb-4 text-base font-semibold text-slate-900">Metadata</h3>
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-slate-500">Name</dt>
             <dd className="text-slate-900">{tender.name}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-slate-500">Kunde</dt>
+            <dt className="text-slate-500">Client</dt>
             <dd className="text-slate-900">{tender.client || '—'}</dd>
           </div>
           <div className="flex justify-between gap-4">
@@ -193,9 +196,9 @@ function OverviewTab({ tender }: { tender: TenderRow }) {
             <dd className="text-slate-900">{tender.deadline || '—'}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-slate-500">Hochgeladen</dt>
+            <dt className="text-slate-500">Uploaded</dt>
             <dd className="text-slate-900">
-              {tender.uploaded_at ? new Date(tender.uploaded_at).toLocaleString('de-DE') : '—'}
+              {tender.uploaded_at ? new Date(tender.uploaded_at).toLocaleString('en-US') : '—'}
             </dd>
           </div>
         </dl>

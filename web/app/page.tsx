@@ -7,6 +7,7 @@ import { TenderCard } from '@/components/TenderCard';
 import { NewTenderModal } from '@/components/Modal';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { apiFetch } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 
 type TenderRow = {
   id: string;
@@ -21,6 +22,7 @@ type TenderRow = {
 export default function Dashboard() {
   const router = useRouter();
   const [tenders, setTenders] = useState<TenderRow[]>([]);
+  const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -41,11 +43,21 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    loadTenders();
-  }, [loadTenders]);
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+      setAuthed(true);
+      loadTenders();
+    });
+  }, [loadTenders, router]);
+
+  if (!authed) return null;
 
   function handleCreated(tenderId: string) {
-    addToast('Tender erstellt!', 'success');
+    addToast('Tender created!', 'success');
     router.push(`/tender/${tenderId}`);
   }
 
@@ -69,6 +81,12 @@ export default function Dashboard() {
             >
               My Company
             </Link>
+            <Link
+              href="/analytics"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Analytics
+            </Link>
           </nav>
         </div>
         <button
@@ -87,7 +105,7 @@ export default function Dashboard() {
         )}
 
         {loading ? (
-          <p className="text-sm text-slate-500">Lade Tenders...</p>
+          <p className="text-sm text-slate-500">Loading tenders...</p>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {tenders.map((tender) => (
