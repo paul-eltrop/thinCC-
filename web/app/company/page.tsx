@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { CompanyDocuments } from '@/components/CompanyDocuments';
 import { CompanyKnowledge } from '@/components/CompanyKnowledge';
 import { CompanyTeam } from '@/components/CompanyTeam';
@@ -15,10 +16,25 @@ const tabs = [
 ];
 
 export default function MyCompany() {
+  const router = useRouter();
+  const [authed, setAuthed] = useState(false);
   const [activeTab, setActiveTab] = useState('documents');
   const [shareLink, setShareLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [welcomeMessage, setWelcomeMessage] = useState('');
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
+      setAuthed(true);
+    });
+  }, [router]);
+
+  if (!authed) return null;
 
   return (
     <div
@@ -43,6 +59,12 @@ export default function MyCompany() {
             <span className="text-sm font-medium text-slate-900">
               My Company
             </span>
+            <Link
+              href="/analytics"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Analytics
+            </Link>
           </nav>
         </div>
       </header>
