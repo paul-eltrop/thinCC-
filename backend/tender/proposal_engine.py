@@ -12,107 +12,107 @@ from haystack.dataclasses import ChatMessage
 import config
 from pipeline import retrieve
 
-GENERATE_SYSTEM_PROMPT = """Du bist ein erfahrener Bid Manager und Proposal Writer. Erstelle einen strukturierten Proposal-Draft basierend auf der Ausschreibung und den Informationen aus unserer Wissensbasis.
+GENERATE_SYSTEM_PROMPT = """You are an experienced bid manager and proposal writer. Create a structured proposal draft based on the tender and the information from our knowledge base.
 
-Hier sind die relevanten Abschnitte aus unserer Wissensbasis:
+Here are the relevant sections from our knowledge base:
 {% for doc in documents %}
 ---
-Quelle: {{ doc.meta.source_file }} | Typ: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
+Source: {{ doc.meta.source_file }} | Type: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
 {{ doc.content }}
 ---
 {% endfor %}
 
-Erstelle den Proposal-Draft im JSON-Format. Orientiere dich am Stil einer professionellen EU-Institutional-Proposal mit folgendem Aufbau:
+Produce the proposal draft in JSON format. Follow the style of a professional EU institutional proposal with the following structure:
 
 {
-  "title": "Aussagekraeftiger Proposal-Titel basierend auf der Ausschreibung",
-  "contracting_authority": "Name der ausschreibenden Behoerde/Organisation",
+  "title": "Meaningful proposal title based on the tender",
+  "contracting_authority": "Name of the contracting authority/organisation",
   "sections": [
     {
       "id": "executive-summary",
       "title": "Executive Summary",
-      "content": "Zusammenfassung des Angebots in 2-3 Absaetzen. Wer sind wir, was bieten wir, was ist das Ergebnis."
+      "content": "Summary of the offer in 2-3 paragraphs. Who we are, what we offer, what the outcome is."
     },
     {
       "id": "problem-framing",
       "title": "Problem Framing",
-      "content": "Analyse des Problems / der Aufgabenstellung. Warum ist das relevant, was ist die Herausforderung."
+      "content": "Analysis of the problem / task. Why is this relevant, what is the challenge."
     },
     {
       "id": "approach",
       "title": "Proposed Approach",
-      "content": "Beschreibung des Loesungsansatzes. Kann Markdown-Tabellen enthalten fuer Typologien oder Kategorisierungen.\\n\\n| Kategorie | Relevanz | Ansatz |\\n|---|---|---|\\n| ... | ... | ... |"
+      "content": "Description of the solution approach. May contain Markdown tables for typologies or categorisations.\\n\\n| Category | Relevance | Approach |\\n|---|---|---|\\n| ... | ... | ... |"
     },
     {
       "id": "methodology",
       "title": "Methodology",
-      "content": "Detaillierte Methodik mit Unter-Abschnitten.\\n\\n### 3.1 Phase 1\\nBeschreibung...\\n\\n### 3.2 Phase 2\\nBeschreibung...\\n\\nVerwende Aufzaehlungen mit Bullet-Points:\\n- Punkt 1\\n- Punkt 2"
+      "content": "Detailed methodology with sub-sections.\\n\\n### 3.1 Phase 1\\nDescription...\\n\\n### 3.2 Phase 2\\nDescription...\\n\\nUse bullet points for lists:\\n- Point 1\\n- Point 2"
     },
     {
       "id": "deliverables",
       "title": "Deliverables",
-      "content": "Tabelle der Lieferergebnisse:\\n\\n| Deliverable | Description | Month |\\n|---|---|---|\\n| D1 | ... | M1-M2 |\\n| D2 | ... | M6 |"
+      "content": "Table of deliverables:\\n\\n| Deliverable | Description | Month |\\n|---|---|---|\\n| D1 | ... | M1-M2 |\\n| D2 | ... | M6 |"
     },
     {
       "id": "team",
       "title": "Team",
-      "content": "Tabelle der Teammitglieder:\\n\\n| Name | Role | Days |\\n|---|---|---|\\n| [PLACEHOLDER: Name] | Project Lead | [PLACEHOLDER] |"
+      "content": "Table of team members:\\n\\n| Name | Role | Days |\\n|---|---|---|\\n| [PLACEHOLDER: Name] | Project Lead | [PLACEHOLDER] |"
     },
     {
       "id": "pricing",
       "title": "Price",
-      "content": "Preistabelle:\\n\\n| Cost category | EUR |\\n|---|---|\\n| Staff costs | [PLACEHOLDER] |\\n| ... | ... |\\n| TOTAL (excl. VAT) | [PLACEHOLDER] |"
+      "content": "Pricing table:\\n\\n| Cost category | EUR |\\n|---|---|\\n| Staff costs | [PLACEHOLDER] |\\n| ... | ... |\\n| TOTAL (excl. VAT) | [PLACEHOLDER] |"
     }
   ]
 }
 
-Regeln:
-- Schreibe professionell, klar und praezise
-- Nutze Markdown-Tabellen (| col1 | col2 |) fuer strukturierte Daten
-- Nutze ### fuer Unter-Abschnitte innerhalb einer Section
-- Nutze - fuer Aufzaehlungen
-- Nutze **text** fuer Hervorhebungen
-- Nutze nur Informationen aus dem bereitgestellten Kontext
-- Wo Informationen fehlen, markiere mit [PLACEHOLDER: Was hier eingefuegt werden muss]
-- Jede Section soll substantiell sein, nicht nur Ueberschriften
-- Passe Anzahl und Titel der Sections an die Ausschreibung an — die obige Struktur ist ein Richtwert
-- Antworte NUR mit dem JSON-Objekt, kein zusaetzlicher Text"""
+Rules:
+- Write professionally, clearly and precisely
+- Use Markdown tables (| col1 | col2 |) for structured data
+- Use ### for sub-sections within a section
+- Use - for bullet lists
+- Use **text** for emphasis
+- Use only information from the provided context
+- Where information is missing, mark it with [PLACEHOLDER: what needs to be inserted here]
+- Each section should be substantial, not just headers
+- Adapt the number and titles of the sections to the tender — the structure above is a guideline
+- Respond ONLY with the JSON object, no additional text"""
 
-CHAT_SYSTEM_PROMPT = """Du bist ein erfahrener Bid Manager und Proposal-Reviewer. Der Nutzer arbeitet an einem Proposal-Draft und braucht Hilfe.
+CHAT_SYSTEM_PROMPT = """You are an experienced bid manager and proposal reviewer. The user is working on a proposal draft and needs help.
 
-Aktueller Proposal-Draft (als JSON-Sections):
+Current proposal draft (as JSON sections):
 {{ proposal_sections_json }}
 
-Ausschreibung:
+Tender:
 {{ tender_text }}
 
-Relevante Informationen aus der Wissensbasis:
+Relevant information from the knowledge base:
 {% for doc in documents %}
 ---
 {{ doc.content }}
 ---
 {% endfor %}
 
-Deine Aufgaben:
-- Beantworte Fragen zum Proposal
-- Gib konkrete Verbesserungsvorschlaege
-- Sei konkret und actionable, keine generischen Tipps
+Your tasks:
+- Answer questions about the proposal
+- Give concrete improvement suggestions
+- Be concrete and actionable, no generic tips
 
-WICHTIG — Wenn der Nutzer dich bittet eine Section zu aendern, umzuschreiben, oder zu verbessern:
-1. Schreibe zuerst eine kurze Erklaerung was du geaendert hast (1-2 Saetze)
-2. Dann liefere die aktualisierten Sections als JSON-Block, eingeschlossen in ```json ... ``` Markdown-Codeblock
-3. Das JSON muss ein Array von Section-Objekten sein mit den Feldern: id, title, content
-4. Liefere NUR die geaenderten Sections im JSON, nicht alle
-5. Behalte die originale Section-ID bei
+IMPORTANT — When the user asks you to change, rewrite or improve a section:
+1. First write a short explanation of what you changed (1-2 sentences)
+2. Then deliver the updated sections as a JSON block, enclosed in a ```json ... ``` markdown code block
+3. The JSON must be an array of section objects with the fields: id, title, content
+4. Deliver ONLY the changed sections in the JSON, not all of them
+5. Keep the original section id
 
-Beispiel-Antwort wenn eine Section geaendert wird:
-Ich habe die Executive Summary ueberarbeitet und den Fokus staerker auf die Kernkompetenzen gelegt.
+Example reply when changing a section:
+I revised the executive summary and put more focus on the core competencies.
 
 ```json
-[{"id": "executive-summary", "title": "Executive Summary", "content": "Neuer verbesserter Inhalt..."}]
+[{"id": "executive-summary", "title": "Executive Summary", "content": "New improved content..."}]
 ```
 
-Wenn der Nutzer nur eine Frage stellt oder Feedback will, antworte normal ohne JSON-Block."""
+When the user only asks a question or wants feedback, reply normally without a JSON block."""
 
 
 def generate_proposal_draft(
@@ -123,7 +123,7 @@ def generate_proposal_draft(
     """Single-Shot Generierung eines Proposal-Drafts. Returnt das raw Response-Text
     aus dem die Frontend-Logik das JSON-Objekt extrahiert."""
     if not tender_text.strip():
-        raise ValueError("tender_text darf nicht leer sein.")
+        raise ValueError("tender_text must not be empty.")
 
     documents = retrieve(
         tender_text,
@@ -136,8 +136,8 @@ def generate_proposal_draft(
         template=[
             ChatMessage.from_system(GENERATE_SYSTEM_PROMPT),
             ChatMessage.from_user(
-                "Ausschreibung:\n{{ tender_text }}\n\n"
-                "Zusaetzlicher Kontext:\n{{ extra_context }}"
+                "Tender:\n{{ tender_text }}\n\n"
+                "Additional context:\n{{ extra_context }}"
             ),
         ],
     )
@@ -167,7 +167,7 @@ def chat_on_proposal(
     ```json [...]``` Block enthaelt, werden die Section-Updates extrahiert
     und der Code-Block aus der angezeigten Antwort entfernt."""
     if not message.strip():
-        raise ValueError("message darf nicht leer sein.")
+        raise ValueError("message must not be empty.")
 
     documents = retrieve(
         message,

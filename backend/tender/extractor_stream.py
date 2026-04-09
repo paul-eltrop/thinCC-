@@ -10,52 +10,51 @@ from llm_utils import gemini_client
 EXTRACTOR_MODEL = "gemini-2.5-flash"
 MAX_TENDER_CHARS = 60000
 
-EXTRACTION_PROMPT = """Du bist ein erfahrener Bid Manager und liest gerade eine
-Ausschreibung. Deine Aufgabe: extrahiere alles was wir wissen muessen um eine
-gute Bewerbung zu schreiben.
+EXTRACTION_PROMPT = """You are an experienced bid manager reading a tender. Your
+task: extract everything we need to know to write a strong proposal.
 
-Erfasse zwei Arten von Eintraegen:
-1. KONKRETE ANFORDERUNGEN — pruefbare Fakten die der Bewerber liefern muss
-   (Zertifikate, Mitarbeiterzahlen, Referenzen, Methodik-Details, Sprachen,
-   Versicherungen, Standorte, Vertragsklauseln, ...).
-2. OFFENE FRAGESTELLUNGEN — wichtige Topics ueber die der Bewerber im Angebot
-   Stellung beziehen muss, aber die nicht als harte Forderung formuliert sind
-   ("Welcher Ansatz fuer Datenmigration?", "Wie sieht die Schulungs-Strategie
-   aus?", "Welche Risiken seht ihr und wie addressiert ihr sie?").
+Capture two kinds of entries:
+1. CONCRETE REQUIREMENTS — verifiable facts the bidder must provide
+   (certificates, headcount, references, methodology details, languages,
+   insurance, locations, contract clauses, ...).
+2. OPEN QUESTIONS — important topics the bidder must take a position on in
+   the proposal, but which are not phrased as hard requirements ("Which
+   approach for data migration?", "What does the training strategy look
+   like?", "What risks do you see and how do you address them?").
 
-Regeln fuer die Extraktion:
-- Maximal 25 Eintraege insgesamt. Lieber wenige hochwertige als viele banale.
-- Eine Zeile pro Eintrag, kurz und praezise (max. ~140 Zeichen).
-- Keine Duplikate. Wenn zwei Stellen dieselbe Anforderung formulieren, nur einmal.
-- Bewerte die Wichtigkeit:
-  * "critical": KO-Kriterium / Eignungskriterium / explizite Pflichtangabe
-  * "high": stark gewichtetes Auswahlkriterium / wichtige Fragestellung mit
-    grossem Einfluss auf die Bewertung
-  * "medium": Standard-Anforderung oder Fragestellung mittlerer Tragweite
-  * "low": Nice-to-have, optional
-- "is_critical": true NUR wenn der Tender es explizit als Mindestanforderung,
-  KO-Kriterium oder Pflichtangabe formuliert. Sonst false.
-- Kategorien:
-  * "compliance" — Zertifikate, Recht, Datenschutz, Versicherung, Standort
-  * "experience" — Referenzen, Vorprojekte, Branchenerfahrung
-  * "team" — Personalstaerke, Qualifikationen, Sprachen, Verfuegbarkeit
-  * "technical" — Methodik, Tools, technische Faehigkeiten, Architektur
-  * "commercial" — Preis, Konditionen, Vertragsmodell, Zahlungsziele
-  * "open_question" — Topics ohne harte Forderung wo der Bewerber Stellung
-    beziehen muss
-  * "other" — wenn nichts passt
-- "related_doc_types" — welche internen Dokumenttypen koennten diese Anforderung
-  belegen? Erlaubte Werte: cv, reference_project, methodology, company_profile,
-  boilerplate, qa_answer. Leer lassen wenn unklar.
+Extraction rules:
+- At most 25 entries total. Prefer a few high-value ones over many trivial.
+- One line per entry, short and precise (max ~140 characters).
+- No duplicates. If two places state the same requirement, capture it once.
+- Rate importance:
+  * "critical": KO criterion / eligibility criterion / explicit mandatory
+  * "high": heavily weighted selection criterion / important question with
+    strong impact on the evaluation
+  * "medium": standard requirement or medium-impact question
+  * "low": nice-to-have, optional
+- "is_critical": true ONLY if the tender explicitly phrases it as a minimum
+  requirement, KO criterion or mandatory disclosure. Otherwise false.
+- Categories:
+  * "compliance" — certificates, law, data protection, insurance, location
+  * "experience" — references, prior projects, industry experience
+  * "team" — headcount, qualifications, languages, availability
+  * "technical" — methodology, tools, technical capabilities, architecture
+  * "commercial" — price, conditions, contract model, payment terms
+  * "open_question" — topics without a hard requirement where the bidder
+    must take a position
+  * "other" — when nothing else fits
+- "related_doc_types" — which internal document types could support this
+  requirement? Allowed values: cv, reference_project, methodology,
+  company_profile, boilerplate, qa_answer. Leave empty if unclear.
 
-WICHTIG zur Output-Formatierung:
-- Antworte AUSSCHLIESSLICH im NDJSON-Format.
-- Eine vollstaendige JSON-Zeile pro Eintrag, getrennt durch \\n.
-- KEINE umschliessende Liste, KEIN Markdown, KEINE Erklaerung, KEINE Codeblocks.
-- Format pro Zeile (alle Felder pflicht):
+IMPORTANT output formatting:
+- Respond ONLY in NDJSON format.
+- One complete JSON line per entry, separated by \\n.
+- NO surrounding list, NO markdown, NO explanation, NO code blocks.
+- Format per line (all fields required):
 {{"text":"...","category":"...","importance":"...","is_critical":false,"related_doc_types":[]}}
 
-Ausschreibung:
+Tender:
 ---
 {tender_text}
 ---"""

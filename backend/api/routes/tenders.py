@@ -62,14 +62,14 @@ class CreateTenderBody(BaseModel):
 def _validate_extension(filename: str) -> None:
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Format {suffix} nicht unterstuetzt. Nur PDF erlaubt.")
+        raise HTTPException(status_code=400, detail=f"Format {suffix} not supported. Only PDF allowed.")
 
 
 def _validate_storage_path(storage_path: str, company_id: str) -> None:
     if not storage_path or "/" not in storage_path:
-        raise HTTPException(status_code=400, detail="Ungueltiger storage_path.")
+        raise HTTPException(status_code=400, detail="Invalid storage_path.")
     if storage_path.split("/", 1)[0] != company_id:
-        raise HTTPException(status_code=403, detail="storage_path liegt nicht im eigenen company-Bereich.")
+        raise HTTPException(status_code=403, detail="storage_path is not inside the caller's company area.")
 
 
 def _slugify(name: str) -> str:
@@ -82,7 +82,7 @@ def _slugify(name: str) -> str:
 @router.post("")
 def create_tender(body: CreateTenderBody, user: CurrentUser = Depends(current_user)) -> dict:
     if not body.name.strip():
-        raise HTTPException(status_code=400, detail="Name darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Name must not be empty.")
     _validate_extension(body.filename)
     _validate_storage_path(body.storage_path, user.company_id)
 
@@ -103,7 +103,7 @@ def create_tender(body: CreateTenderBody, user: CurrentUser = Depends(current_us
     }
     result = supabase_service().table("tenders").insert(row).execute()
     if not result.data:
-        raise HTTPException(status_code=500, detail="Insert fehlgeschlagen.")
+        raise HTTPException(status_code=500, detail="Insert failed.")
     return result.data[0]
 
 
@@ -126,7 +126,7 @@ def list_tenders(user: CurrentUser = Depends(current_user)) -> dict:
 def get_tender(tender_id: str, user: CurrentUser = Depends(current_user)) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     sb = supabase_service()
     raw = (
@@ -153,9 +153,9 @@ def delete_tender(tender_id: str, user: CurrentUser = Depends(current_user)) -> 
         .execute()
     )
     if not fetched or not fetched.data:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
     if fetched.data["company_id"] != user.company_id:
-        raise HTTPException(status_code=403, detail="Tender gehoert einer anderen Company.")
+        raise HTTPException(status_code=403, detail="Tender belongs to a different company.")
 
     storage_path = fetched.data.get("storage_path")
     if storage_path:
@@ -211,7 +211,7 @@ def _ensure_parsed_text(tender, sb) -> str:
     if tender.parsed_text:
         return tender.parsed_text
     if not tender.filename:
-        raise HTTPException(status_code=422, detail="Tender hat keine Datei.")
+        raise HTTPException(status_code=422, detail="Tender has no file.")
 
     storage_path = (
         sb.table("tenders")
@@ -235,7 +235,7 @@ def _ensure_parsed_text(tender, sb) -> str:
         Path(tmp.name).unlink(missing_ok=True)
 
     if not text.strip():
-        raise HTTPException(status_code=422, detail="PDF enthielt keinen extrahierbaren Text.")
+        raise HTTPException(status_code=422, detail="PDF contained no extractable text.")
 
     set_parsed_text(tender.id, text)
     return text
@@ -252,13 +252,13 @@ def scan_tender_stream(
     der Fertigstellung, nicht dem Index."""
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     async def event_stream():
         sb = supabase_service()
         try:
             yield _sse("start", {})
-            yield _sse("phase", {"step": "parse", "message": "Parse Tender-PDF..."})
+            yield _sse("phase", {"step": "parse", "message": "Parsing tender PDF..."})
 
             try:
                 parsed_text = _ensure_parsed_text(tender, sb)
@@ -270,7 +270,7 @@ def scan_tender_stream(
             clear_scan_state(tender.id)
             update_tender_scan_meta(tender.id, scan_status="extracting", requirement_count=0)
 
-            yield _sse("phase", {"step": "extract", "message": "Extrahiere Anforderungen..."})
+            yield _sse("phase", {"step": "extract", "message": "Extracting requirements..."})
 
             requirements: list[Requirement] = []
             try:
@@ -291,12 +291,12 @@ def scan_tender_stream(
                         },
                     )
             except Exception as err:
-                yield _sse("error", {"message": f"Extraktion fehlgeschlagen: {type(err).__name__}: {err}"})
+                yield _sse("error", {"message": f"Extraction failed: {type(err).__name__}: {err}"})
                 update_tender_scan_meta(tender.id, scan_status="error")
                 return
 
             if not requirements:
-                yield _sse("error", {"message": "Keine Anforderungen extrahiert."})
+                yield _sse("error", {"message": "No requirements extracted."})
                 update_tender_scan_meta(tender.id, scan_status="error")
                 return
 
@@ -307,7 +307,7 @@ def scan_tender_stream(
             )
             yield _sse(
                 "phase",
-                {"step": "scan", "message": f"Scanne Coverage fuer {len(requirements)} Anforderungen..."},
+                {"step": "scan", "message": f"Scanning coverage for {len(requirements)} requirements..."},
             )
 
             semaphore = asyncio.Semaphore(config.SCAN_CONCURRENCY)
@@ -393,7 +393,7 @@ def tender_chat_turn(
         body.current_requirement_id,
     )
     if tender is None:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     def event_stream():
         yield _sse(
@@ -433,12 +433,12 @@ def promote_tender(
 ) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     try:
         promoted = promote_answers(tender, user.company_id)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Promotion fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"Promotion failed: {err}")
 
     return {"promoted": promoted, "count": len(promoted)}
 
@@ -465,11 +465,11 @@ def generate_proposal(
 ) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
     if not tender.parsed_text:
         raise HTTPException(
             status_code=422,
-            detail="Tender hat noch keinen geparsten Text. Bitte erst Fit-Check Scan starten.",
+            detail="Tender has no parsed text yet. Please run a fit-check scan first.",
         )
 
     try:
@@ -479,7 +479,7 @@ def generate_proposal(
             extra_context=body.extra_context or "",
         )
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Generate fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"Generate failed: {err}")
 
     return {"draft": result["raw_text"], "sources_used": result["sources_used"]}
 
@@ -491,11 +491,11 @@ def chat_proposal(
     user: CurrentUser = Depends(current_user),
 ) -> dict:
     if not body.message.strip():
-        raise HTTPException(status_code=400, detail="Nachricht darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Message must not be empty.")
 
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
 
     try:
         result = chat_on_proposal(
@@ -506,7 +506,7 @@ def chat_proposal(
             company_id=user.company_id,
         )
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Chat fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"Chat failed: {err}")
 
     if result.get("updated_sections"):
         merged = patch_proposal_sections(tender_id, result["updated_sections"])
@@ -523,6 +523,6 @@ def patch_proposal(
 ) -> dict:
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
-        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' not found.")
     save_proposal(tender_id, body.sections, body.meta)
     return {"ok": True, "section_count": len(body.sections)}
