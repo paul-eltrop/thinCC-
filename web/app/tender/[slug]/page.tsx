@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { TenderFitCheck } from '@/components/TenderFitCheck';
+import { TenderDraftWrapper } from '@/components/TenderDraftWrapper';
+import { TenderExportWrapper } from '@/components/TenderExportWrapper';
 
 type TenderRow = {
   id: string;
@@ -143,13 +145,8 @@ export default function TenderDetail() {
 
               {activeTab === 'overview' && <OverviewTab tender={tender} />}
               {activeTab === 'fit-check' && <TenderFitCheck tenderId={tender.id} />}
-              {(activeTab === 'draft' || activeTab === 'export') && (
-                <div className="rounded-3xl border border-white/60 bg-white/70 p-12 text-center backdrop-blur-xl">
-                  <p className="text-sm text-slate-500">
-                    Dieser Tab kommt in einem spaeteren Schritt.
-                  </p>
-                </div>
-              )}
+              {activeTab === 'draft' && <TenderDraftWrapper tenderId={tender.id} />}
+              {activeTab === 'export' && <TenderExportWrapper tenderId={tender.id} />}
             </>
           )}
         </div>
