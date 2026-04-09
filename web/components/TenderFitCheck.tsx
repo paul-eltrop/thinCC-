@@ -95,6 +95,8 @@ export function TenderFitCheck({ tenderId, refreshKey, hasDraft, onGoToDraft }: 
 
   useEffect(() => {
     const supabase = createClient();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const channel = supabase
       .channel(`coverage-${tenderId}`)
       .on('postgres_changes', {
@@ -103,11 +105,16 @@ export function TenderFitCheck({ tenderId, refreshKey, hasDraft, onGoToDraft }: 
         table: 'tender_coverage',
       }, (payload) => {
         const reqId = (payload.new as Record<string, unknown>)?.requirement_id as string;
-        if (reqId?.startsWith(tenderId)) loadTender();
+        if (!reqId?.startsWith(tenderId)) return;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => loadTender(), 2000);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [tenderId, loadTender]);
 
   useEffect(() => {
