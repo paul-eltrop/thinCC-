@@ -161,6 +161,35 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownloadPdf = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = sections
+      .map((s, i) => `<div class="section"><div class="section-header"><span class="section-num">${i + 1}.</span><span class="section-title">${s.title}</span></div><div class="section-body">${renderMarkdown(s.content)}</div></div>`)
+      .join('');
+
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Proposal Draft</title><style>
+      @page { size: A4; margin: 20mm 25mm; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; font-size: 11pt; line-height: 1.6; }
+      .section { margin-bottom: 24pt; }
+      .section-header { border-bottom: 2pt solid #1e293b; padding-bottom: 4pt; margin-bottom: 12pt; display: flex; align-items: center; gap: 8pt; }
+      .section-num { font-size: 14pt; font-weight: 600; }
+      .section-title { font-size: 14pt; font-weight: 600; }
+      .section-body { font-size: 11pt; }
+      .section-body p { margin: 4pt 0; }
+      .section-body h4 { font-size: 11pt; font-weight: 600; margin: 10pt 0 4pt; }
+      .section-body strong { font-weight: 600; }
+      .section-body table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 10pt; }
+      .section-body th { background: #1e293b; color: white; padding: 6pt 8pt; text-align: left; font-size: 9pt; font-weight: 600; }
+      .section-body td { padding: 5pt 8pt; border-bottom: 1px solid #e2e8f0; }
+      .section-body tr:nth-child(even) { background: #f8fafc; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style></head><body>${htmlContent}</body></html>`);
+    printWindow.document.close();
+    printWindow.onload = () => { printWindow.print(); };
+  };
+
   const handleMouseUp = useCallback(() => {
     if (viewMode !== 'preview') return;
     const sel = window.getSelection();
@@ -256,6 +285,17 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
           <span className="text-[10px] text-slate-400">{sections.length} sections</span>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={handleDownloadPdf}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download PDF
+          </button>
           <button
             onClick={handleCopy}
             className="rounded-full px-3 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition-colors"
