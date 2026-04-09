@@ -36,6 +36,88 @@ type UploadingItem = {
 
 const BUCKET = 'company_documents';
 
+type Category = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  keywords: string[];
+};
+
+const CATEGORIES: Category[] = [
+  {
+    id: 'tender',
+    label: 'Past Tenders / RFPs',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 2v6h6" />
+        <path d="M16 13H8" />
+        <path d="M16 17H8" />
+      </svg>
+    ),
+    keywords: ['tender', 'rfp', 'rfq', 'rfi', 'proposal', 'bid', 'ausschreibung', 'angebot', 'vergabe'],
+  },
+  {
+    id: 'company',
+    label: 'Company Profile',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+        <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+        <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      </svg>
+    ),
+    keywords: ['company', 'profile', 'about', 'overview', 'unternehmen', 'firma', 'capabilities', 'brochure'],
+  },
+  {
+    id: 'cv',
+    label: "CV's",
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+    keywords: ['cv', 'resume', 'lebenslauf', 'vita', 'curriculum'],
+  },
+  {
+    id: 'methodology',
+    label: 'Methodology',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z" />
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z" />
+      </svg>
+    ),
+    keywords: ['method', 'methodology', 'process', 'approach', 'framework', 'methodik', 'vorgehen'],
+  },
+  {
+    id: 'other',
+    label: 'Others',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      </svg>
+    ),
+    keywords: [],
+  },
+];
+
+function categorizeDocument(doc: DocumentRow): string {
+  const name = doc.name.toLowerCase();
+  const docType = (doc.doc_type || '').toLowerCase();
+
+  for (const cat of CATEGORIES) {
+    if (cat.id === 'other') continue;
+    if (cat.keywords.some((kw) => name.includes(kw) || docType.includes(kw))) {
+      return cat.id;
+    }
+  }
+  return 'other';
+}
+
 export function CompanyDocuments() {
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,10 +293,25 @@ export function CompanyDocuments() {
           <p className="text-sm text-slate-500">No documents yet. Upload your first one.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {documents.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} onDelete={() => setPendingDelete(doc)} />
-          ))}
+        <div className="space-y-8">
+          {CATEGORIES.map((cat) => {
+            const catDocs = documents.filter((d) => categorizeDocument(d) === cat.id);
+            if (catDocs.length === 0) return null;
+            return (
+              <div key={cat.id}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-slate-400">{cat.icon}</span>
+                  <h3 className="text-sm font-semibold text-slate-700">{cat.label}</h3>
+                  <span className="text-[11px] font-medium text-slate-400">{catDocs.length}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {catDocs.map((doc) => (
+                    <DocumentCard key={doc.id} doc={doc} onDelete={() => setPendingDelete(doc)} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
