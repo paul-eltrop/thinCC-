@@ -26,8 +26,8 @@ IMPORTANCE_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 STATUS_ORDER = {"missing": 0, "partial": 1, "covered": 2}
 
 DONE_PROMPT = (
-    "Alle relevanten Anforderungen sind abgedeckt. Du kannst den Tender-Chat "
-    "jetzt beenden und die Promotion ausloesen."
+    "All relevant requirements are covered. You can end the tender chat "
+    "now and trigger the promotion."
 )
 
 
@@ -77,56 +77,128 @@ def _gather_hints(requirement: Requirement, company_id: str) -> list[Document]:
 
 def _format_hints(hints: list[Document]) -> str:
     if not hints:
-        return "(keine relevanten Treffer in der Wissensbasis)"
+        return "(no relevant matches in the knowledge base)"
     return "\n".join(
-        f"- [Quelle: {h.meta.get('source_file', 'unbekannt')}] {h.content.strip()}"
+        f"- [source: {h.meta.get('source_file', 'unknown')}] {h.content.strip()}"
         for h in hints
     )
 
 
-def _format_open(open_list: list[Requirement]) -> str:
+def _format_covered_requirements(tender: Tender) -> str:
+    covered = []
+    for r in tender.requirements:
+        cov = tender.coverage.get(r.id)
+        if cov and cov.status == "covered":
+            covered.append(r)
+    if not covered:
+        return "(none)"
+    return "\n".join(f"- [{r.category}] {r.text}" for r in covered)
+
+
+def _format_open_by_category(open_list: list[Requirement]) -> str:
     if not open_list:
-        return "(keine)"
-    return "\n".join(f"- [{r.importance}] {r.text}" for r in open_list)
+        return "(none)"
+
+    by_category: dict[str, list[Requirement]] = {}
+    for req in open_list:
+        cat = req.category or "Other"
+        by_category.setdefault(cat, []).append(req)
+
+    lines = []
+    for cat in sorted(by_category.keys()):
+        lines.append(f"\n{cat}:")
+        for req in by_category[cat]:
+            critical = " (CRITICAL)" if req.is_critical else ""
+            lines.append(f"  - [{req.importance}] {req.text}{critical}")
+    return "\n".join(lines)
+
+
+def _format_current_knowledge(tender: Tender) -> str:
+    lines = []
+    for req in tender.requirements:
+        cov = tender.coverage.get(req.id)
+        if cov and cov.evidence:
+            lines.append(f"- {req.category}: {cov.evidence.strip()[:150]}")
+    if not lines:
+        return "(no knowledge collected yet)"
+    return "\n".join(lines)
 
 
 def _build_system_prompt(
     tender: Tender,
-    requirement: Requirement,
     open_list: list[Requirement],
     hints: list[Document],
 ) -> str:
-    cov = tender.coverage.get(requirement.id)
-    notes = cov.notes if cov and cov.notes else "(keine)"
-    remaining = len(open_list)
+    covered_count = sum(
+        1 for r in tender.requirements
+        if (cov := tender.coverage.get(r.id)) and cov.status == "covered"
+    )
+    total_count = len(tender.requirements)
+    open_count = len(open_list)
+    critical_open = [r for r in open_list if r.is_critical]
 
-    return f"""Du bist ein Bid Manager im Dialog mit dem Bewerber. Deine Aufgabe ist es,
-gezielt Informationen einzusammeln um Luecken im Fit-Check zu schliessen.
+    match_score = tender.ranking.score if tender.ranking else 0
+    recommendation = tender.ranking.recommendation if tender.ranking else "unknown"
+    non_critical_open = open_count - len(critical_open)
 
-REGELN:
-- Stelle IMMER nur EINE Frage pro Nachricht.
-- Sei kurz, freundlich, professionell. Keine langen Vortraege.
-- Wenn die Wissensbasis schon Hinweise liefert, frage als Verifikation:
-  "Ich habe X gefunden — passt das zu dieser Anforderung?"
-- Wenn die Wissensbasis nichts hergibt, frage offen.
-- Erwaehne kurz wieviele Luecken noch offen sind.
+    return f"""You are an experienced bid manager working with the applicant
+to close gaps in the fit-check for a specific tender.
 
-KONTEXT (Tender: {tender.name}):
-Noch offene Anforderungen ({remaining} insgesamt):
-{_format_open(open_list)}
+Your goal: clarify all open requirements as efficiently as possible so
+the draft can be generated.
 
-AKTUELLE ANFORDERUNG:
-ID: {requirement.id}
-Importance: {requirement.importance}{" (KRITISCH)" if requirement.is_critical else ""}
-Kategorie: {requirement.category}
-Anforderung: {requirement.text}
-Bisherige Notes: {notes}
+TENDER: {tender.name}
+CLIENT: {tender.client}
+DEADLINE: {tender.deadline}
 
-VORWISSEN aus der Wissensbasis:
+FIT-CHECK RESULT:
+Match score: {match_score}%
+Covered: {covered_count} / {total_count} requirements
+Recommendation: {recommendation}
+
+COVERED REQUIREMENTS (no action needed):
+{_format_covered_requirements(tender)}
+
+OPEN REQUIREMENTS ({open_count} remaining):
+{_format_open_by_category(open_list)}
+
+CURRENT KNOWLEDGE FROM PRIOR ANSWERS:
+{_format_current_knowledge(tender)}
+
+ADDITIONAL CONTEXT FROM KNOWLEDGE BASE:
 {_format_hints(hints)}
 
-Stelle jetzt die Frage zu dieser Anforderung in einem Satz, ggf. mit
-Verifikations-Hinweis falls oben Vorwissen steht."""
+APPROACH:
+1. SUMMARY — Start with a short overview: what already fits, where the
+   gaps are, what is critical. Give the user orientation before asking.
+2. CRITICAL GAPS FIRST — If there are critical requirements (which would
+   block the draft), address them first. Explain why they are critical.
+3. CLUSTER QUESTIONS — Group related open requirements (e.g. all
+   team-related, all methodology-related) and ask one summarising
+   question per cluster instead of individual questions.
+4. OFFER CONTEXT — When the KB has partial knowledge, present it as a
+   starting point: "From your past proposals I see that you did X. Does
+   that translate to this requirement, or is there a different approach
+   here?"
+5. INVITE EXTRA CONTEXT — Actively invite the user to share context the
+   agent doesn't know: "Are there partnerships, ongoing projects or
+   internal expertise that could be relevant here?"
+
+RULES:
+- NEVER ask about info that is already covered.
+- Derive from the conversation where possible instead of asking. If the
+  user says "we work with company Y", immediately check whether that
+  also covers other open requirements.
+- After each answer: brief update on which gaps are now closed and
+  which remain open.
+- When all critical gaps are closed, say so clearly: "The critical
+  requirements are covered. The draft can be generated. There are
+  still {non_critical_open} non-critical gaps — do you want to clarify
+  them now or should I generate the draft with placeholders for those
+  spots?"
+- Be a sparring partner, not an interviewer. If you can derive a
+  proposal from the KB on how a gap could be closed, make that
+  suggestion."""
 
 
 def _persist_user_answer(
@@ -192,7 +264,7 @@ def prepare_turn(
 
     next_requirement = open_list[0]
     hints = _gather_hints(next_requirement, company_id)
-    system_prompt = _build_system_prompt(tender, next_requirement, open_list, hints)
+    system_prompt = _build_system_prompt(tender, open_list, hints)
 
     return tender, TenderNextTurn(
         current_requirement_id=next_requirement.id,
