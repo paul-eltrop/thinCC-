@@ -28,12 +28,15 @@ export default function Signup() {
       return;
     }
 
-    const userId = authData.user?.id;
-    if (!userId) {
-      setError('Signup failed.');
+    if (!authData.session) {
+      setError('Please check your email to confirm your account before continuing.');
       setLoading(false);
       return;
     }
+
+    await supabase.auth.setSession(authData.session);
+
+    const userId = authData.user!.id;
 
     const { data: company, error: companyError } = await supabase
       .from('companies')
@@ -52,6 +55,7 @@ export default function Signup() {
       .insert({ id: userId, company_id: company.id, display_name: displayName });
 
     if (profileError) {
+      await supabase.from('companies').delete().eq('id', company.id);
       setError(profileError.message);
       setLoading(false);
       return;
