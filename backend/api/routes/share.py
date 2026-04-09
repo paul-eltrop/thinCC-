@@ -5,6 +5,7 @@
 
 import tempfile
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -17,6 +18,9 @@ import config
 from auth import supabase_service
 from company.rag_sync import write_share_artifact
 from pipeline import index_documents, retrieve
+from tender.coverage import check_requirement
+from tender.db import Requirement, upsert_coverage, load_tender_full, update_tender_scan_meta
+from tender.ranking import compute_ranking
 
 router = APIRouter(prefix="/share", tags=["share"])
 
@@ -77,18 +81,31 @@ class ShareChatRequest(BaseModel):
     history: list[ShareChatMessage] = []
 
 
-def _resolve_share(share_id: str) -> tuple[str, str]:
+@dataclass
+class ShareLink:
+    company_id: str
+    welcome_message: str
+    tender_id: str | None
+    requirement_id: str | None
+
+
+def _resolve_share(share_id: str) -> ShareLink:
     result = (
         supabase_service()
         .table("share_links")
-        .select("company_id, welcome_message")
+        .select("company_id, welcome_message, tender_id, requirement_id")
         .eq("id", share_id)
         .single()
         .execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Share link not found.")
-    return result.data["company_id"], result.data.get("welcome_message", "") or ""
+    return ShareLink(
+        company_id=result.data["company_id"],
+        welcome_message=result.data.get("welcome_message", "") or "",
+        tender_id=result.data.get("tender_id"),
+        requirement_id=result.data.get("requirement_id"),
+    )
 
 
 def _format_context(docs: list) -> str:
@@ -119,12 +136,12 @@ def _extract_facts(question: str, welcome_message: str) -> str | None:
 
 @router.post("/chat")
 def share_chat(req: ShareChatRequest) -> dict:
-    company_id, welcome_message = _resolve_share(req.share_id)
+    link = _resolve_share(req.share_id)
 
-    docs = retrieve(req.question, company_id=company_id)
+    docs = retrieve(req.question, company_id=link.company_id)
     context = _format_context(docs)
     system_prompt = CHAT_SYSTEM_PROMPT.format(
-        welcome_message=welcome_message,
+        welcome_message=link.welcome_message,
         context=context,
     )
 
@@ -145,7 +162,7 @@ def share_chat(req: ShareChatRequest) -> dict:
         summary = _strip_markdown(raw_reply.replace("[COLLECTION_COMPLETE]", ""))
         try:
             write_share_artifact(
-                company_id=company_id,
+                company_id=link.company_id,
                 artifact_id=f"summary_{req.share_id}_{uuid.uuid4().hex[:8]}",
                 content=summary,
                 doc_type="collection_summary",
@@ -155,14 +172,14 @@ def share_chat(req: ShareChatRequest) -> dict:
             pass
 
     try:
-        facts = _extract_facts(req.question, welcome_message)
+        facts = _extract_facts(req.question, link.welcome_message)
     except Exception:
         facts = None
 
     if facts:
         try:
             write_share_artifact(
-                company_id=company_id,
+                company_id=link.company_id,
                 artifact_id=f"facts_{req.share_id}_{uuid.uuid4().hex[:8]}",
                 content=facts,
                 doc_type="chat_extracted_info",
@@ -171,8 +188,40 @@ def share_chat(req: ShareChatRequest) -> dict:
         except Exception:
             pass
 
+    coverage_result = None
+    if is_complete or facts:
+        coverage_result = _recheck_requirement(link)
+
     clean_reply = _strip_markdown(raw_reply.replace("[COLLECTION_COMPLETE]", ""))
-    return {"reply": clean_reply, "complete": is_complete}
+    return {"reply": clean_reply, "complete": is_complete, "coverage": coverage_result}
+
+
+def _recheck_requirement(link: ShareLink) -> dict | None:
+    if not link.tender_id or not link.requirement_id:
+        return None
+
+    tender = load_tender_full(link.company_id, link.tender_id)
+    if not tender:
+        return None
+
+    req = next((r for r in tender.requirements if r.id == link.requirement_id), None)
+    if not req:
+        return None
+
+    new_cov = check_requirement(req, link.company_id)
+    upsert_coverage(new_cov)
+
+    tender.coverage[req.id] = new_cov
+    new_ranking = compute_ranking(tender.requirements, tender.coverage)
+    update_tender_scan_meta(
+        tender.id,
+        score=new_ranking.score,
+        recommendation=new_ranking.recommendation,
+        has_critical_gap=new_ranking.has_critical_gap,
+        reasoning=new_ranking.reasoning,
+    )
+
+    return {"status": new_cov.status, "confidence": new_cov.confidence}
 
 
 @router.post("/chat/upload")
@@ -180,7 +229,7 @@ async def share_chat_upload(
     share_id: str = Form(...),
     file: UploadFile = File(...),
 ) -> dict:
-    company_id, _ = _resolve_share(share_id)
+    link = _resolve_share(share_id)
 
     suffix = Path(file.filename or "upload").suffix
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -189,8 +238,14 @@ async def share_chat_upload(
         tmp_path = tmp.name
 
     try:
-        index_documents([tmp_path], company_id=company_id)
+        index_documents([tmp_path], company_id=link.company_id)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
-    return {"status": "indexed", "file": file.filename}
+    coverage_result = _recheck_requirement(link)
+
+    return {
+        "status": "indexed",
+        "file": file.filename,
+        "coverage": coverage_result,
+    }
