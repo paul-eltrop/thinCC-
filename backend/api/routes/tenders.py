@@ -2,6 +2,7 @@
 # der via Gemini Anforderungen extrahiert + Coverage gegen die Company-RAG
 # scannt, plus Chat zum Lueckenschluss + Promotion zur Company-Knowledge-Base.
 
+import asyncio
 import json
 import tempfile
 import uuid
@@ -13,12 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+import config
 from auth import CurrentUser, current_user, supabase_service
 from chat.agent import ChatMessage as AgentChatMessage
 from chat.llm import stream_chat
 from pipeline import parse_pdf
 from tender.chat_agent import prepare_turn
-from tender.coverage import check_requirement
+from tender.coverage import check_requirement_async
 from tender.db import (
     Requirement,
     clear_scan_state,
@@ -244,14 +246,15 @@ def scan_tender_stream(
     tender_id: str,
     user: CurrentUser = Depends(current_user),
 ) -> StreamingResponse:
-    """Zwei-Phasen-SSE: Phase 1 streamt Requirements live aus Gemini, Phase 2
-    scant die Coverage pro Requirement gegen die Company-RAG. Nach jedem
-    Coverage-Result wird das Ranking neu berechnet und gestreamt."""
+    """Zwei-Phasen-SSE: Phase 1 streamt Requirements live aus Gemini. Phase 2
+    scant die Coverage parallel (Semaphore-limitiert) und yieldet pro fertigem
+    Requirement coverage_result + ranking. Reihenfolge im Stream entspricht
+    der Fertigstellung, nicht dem Index."""
     tender = load_tender_full(user.company_id, tender_id)
     if not tender:
         raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
 
-    def event_stream():
+    async def event_stream():
         sb = supabase_service()
         try:
             yield _sse("start", {})
@@ -307,44 +310,44 @@ def scan_tender_stream(
                 {"step": "scan", "message": f"Scanne Coverage fuer {len(requirements)} Anforderungen..."},
             )
 
-            coverage_map = {}
+            semaphore = asyncio.Semaphore(config.SCAN_CONCURRENCY)
+            tasks = [
+                asyncio.create_task(check_requirement_async(req, user.company_id, semaphore))
+                for req in requirements
+            ]
+            coverage_map: dict = {}
             total = len(requirements)
-            for idx, req in enumerate(requirements, start=1):
-                try:
-                    cov = check_requirement(req, user.company_id)
-                except Exception as err:
-                    from tender.db import RequirementCoverage
-                    cov = RequirementCoverage(
-                        requirement_id=req.id,
-                        status="missing",
-                        confidence=0.0,
-                        evidence=None,
-                        sources=[],
-                        user_provided=False,
-                        notes=f"Scan-Fehler: {type(err).__name__}: {err}",
+            ranking = None
+            try:
+                completed = 0
+                for coro in asyncio.as_completed(tasks):
+                    cov = await coro
+                    completed += 1
+                    upsert_coverage(cov)
+                    coverage_map[cov.requirement_id] = cov
+
+                    ranking = compute_ranking(requirements, coverage_map)
+                    update_tender_scan_meta(
+                        tender.id,
+                        score=ranking.score,
+                        recommendation=ranking.recommendation,
+                        has_critical_gap=ranking.has_critical_gap,
+                        reasoning=ranking.reasoning,
                     )
 
-                upsert_coverage(cov)
-                coverage_map[req.id] = cov
-
-                ranking = compute_ranking(requirements, coverage_map)
-                update_tender_scan_meta(
-                    tender.id,
-                    score=ranking.score,
-                    recommendation=ranking.recommendation,
-                    has_critical_gap=ranking.has_critical_gap,
-                    reasoning=ranking.reasoning,
-                )
-
-                yield _sse(
-                    "coverage_result",
-                    {
-                        "coverage": asdict(cov),
-                        "current": idx,
-                        "total": total,
-                    },
-                )
-                yield _sse("ranking", asdict(ranking))
+                    yield _sse(
+                        "coverage_result",
+                        {
+                            "coverage": asdict(cov),
+                            "current": completed,
+                            "total": total,
+                        },
+                    )
+                    yield _sse("ranking", asdict(ranking))
+            finally:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
 
             update_tender_scan_meta(
                 tender.id,
@@ -355,8 +358,8 @@ def scan_tender_stream(
                 "done",
                 {
                     "requirement_count": total,
-                    "score": ranking.score,
-                    "recommendation": ranking.recommendation,
+                    "score": ranking.score if ranking else 0,
+                    "recommendation": ranking.recommendation if ranking else "no_go",
                 },
             )
         except Exception as err:

@@ -18,6 +18,7 @@ from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRe
 import config
 from classification import DocumentClassifier
 from document_store import document_store
+from reranker import rerank as rerank_documents
 
 DOC_TYPE_FOLDERS = {"cvs", "company_profile", "methodology", "reference_project"}
 
@@ -171,14 +172,18 @@ def retrieve(
     filters: dict | None = None,
     top_k: int | None = None,
     score_threshold: float | None = None,
+    rerank: bool = True,
 ) -> list[Document]:
     """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional
     mit Filter nach doc_type, company_id-Tenant-Isolation, ueberschreibbarem
-    top_k und score_threshold."""
-    pipeline = build_query_pipeline(
-        top_k=top_k if top_k is not None else config.TOP_K,
-        score_threshold=score_threshold if score_threshold is not None else MIN_FIT_SCORE,
-    )
+    top_k und score_threshold. Wenn rerank=True (default) und ein Cohere-Key
+    konfiguriert ist, werden top_k * RERANK_CANDIDATE_MULTIPLIER Kandidaten
+    aus Qdrant geholt und vom Cross-Encoder auf top_k umsortiert."""
+    target_k = top_k if top_k is not None else config.TOP_K
+    threshold = score_threshold if score_threshold is not None else MIN_FIT_SCORE
+    fetch_k = target_k * config.RERANK_CANDIDATE_MULTIPLIER if rerank else target_k
+
+    pipeline = build_query_pipeline(top_k=fetch_k, score_threshold=threshold)
 
     retriever_params = {}
     if company_id:
@@ -191,7 +196,10 @@ def retrieve(
         "retriever": retriever_params,
     })
 
-    return result["retriever"]["documents"]
+    documents = result["retriever"]["documents"]
+    if not rerank:
+        return documents
+    return rerank_documents(question, documents, top_n=target_k)
 
 
 def build_fit_check_pipeline(system_prompt: str = FIT_CHECK_PROMPT) -> Pipeline:

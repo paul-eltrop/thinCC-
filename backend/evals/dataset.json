@@ -1,0 +1,40 @@
+{
+  "description": "Retrieval-Eval-Set fuer das thinCC RAG. Pro Query ist mindestens ein Substring eines erwarteten source_file hinterlegt. Ein Treffer zaehlt, wenn irgendeines der retrieveten Chunks im Top-K einen source_file hat, dessen Name eines der expected_source_contains-Patterns enthaelt (case-insensitive). Fuelle die Eintraege mit deinen echten Test-Queries und Datei-Namen aus deiner Test-Company.",
+  "queries": [
+    {
+      "id": "q1",
+      "query": "Welche ISO 27001 Zertifizierung haben wir?",
+      "expected_source_contains": ["iso27001", "isms", "zertifik"],
+      "filters_doc_types": ["company_profile", "boilerplate"],
+      "notes": "Erwartet Compliance-/Zertifikats-Dokumente."
+    },
+    {
+      "id": "q2",
+      "query": "Wer im Team hat Erfahrung mit Cloud Migration?",
+      "expected_source_contains": ["cv_", "lebenslauf"],
+      "filters_doc_types": ["cv"],
+      "notes": "Erwartet einen oder mehrere CVs mit Cloud-Skill."
+    },
+    {
+      "id": "q3",
+      "query": "Welche oeffentlichen Auftraggeber haben wir bereits beliefert?",
+      "expected_source_contains": ["referenz", "case_study", "projekt"],
+      "filters_doc_types": ["reference_project"],
+      "notes": "Erwartet Referenz-Projekte mit oeffentlichem Sektor."
+    },
+    {
+      "id": "q4",
+      "query": "Was ist unsere Methodik fuer agiles Projektmanagement?",
+      "expected_source_contains": ["methodik", "vorgehen", "scrum"],
+      "filters_doc_types": ["methodology"],
+      "notes": null
+    },
+    {
+      "id": "q5",
+      "query": "Wie viele Mitarbeiter hat unser Unternehmen?",
+      "expected_source_contains": ["unternehmen", "company_profile", "ueber_uns"],
+      "filters_doc_types": ["company_profile"],
+      "notes": null
+    }
+  ]
+}

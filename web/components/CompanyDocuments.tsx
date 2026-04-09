@@ -25,14 +25,13 @@ type DocumentRow = {
   file_size: number | null;
   status: 'indexing' | 'ready' | 'failed' | string;
   chunks_indexed: number | null;
+  error_message: string | null;
   uploaded_at: string;
 };
 
 type UploadingItem = {
   id: string;
   filename: string;
-  phase: 'uploading' | 'indexing';
-  error?: string;
 };
 
 const BUCKET = 'company_documents';
@@ -46,12 +45,13 @@ export function CompanyDocuments() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (cid: string) => {
     setError(null);
     const supabase = createClient();
     const { data, error: err } = await supabase
       .from('documents')
       .select('*')
+      .eq('company_id', cid)
       .order('uploaded_at', { ascending: false });
 
     if (err) {
@@ -63,22 +63,38 @@ export function CompanyDocuments() {
     setLoading(false);
   }, []);
 
-  const loadCompanyId = useCallback(async () => {
+  const loadCompanyId = useCallback(async (): Promise<string | null> => {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return null;
     const { data: profile } = await supabase
       .from('profiles')
       .select('company_id')
       .eq('id', user.id)
       .single();
-    if (profile?.company_id) setCompanyId(profile.company_id);
+    if (!profile?.company_id) return null;
+    setCompanyId(profile.company_id);
+    return profile.company_id;
   }, []);
 
   useEffect(() => {
-    loadCompanyId();
-    loadDocuments();
+    (async () => {
+      const cid = await loadCompanyId();
+      if (cid) {
+        await loadDocuments(cid);
+      } else {
+        setLoading(false);
+      }
+    })();
   }, [loadCompanyId, loadDocuments]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    const hasIndexing = documents.some((d) => d.status === 'indexing');
+    if (!hasIndexing) return;
+    const interval = setInterval(() => loadDocuments(companyId), 3000);
+    return () => clearInterval(interval);
+  }, [documents, loadDocuments, companyId]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -101,7 +117,7 @@ export function CompanyDocuments() {
     const safeName = sanitizeFilename(file.name);
     const path = `${cid}/${crypto.randomUUID()}-${safeName}`;
     const itemId = crypto.randomUUID();
-    setUploads((prev) => [...prev, { id: itemId, filename: file.name, phase: 'uploading' }]);
+    setUploads((prev) => [...prev, { id: itemId, filename: file.name }]);
 
     const supabase = createClient();
     const { error: storageErr } = await supabase.storage
@@ -113,8 +129,6 @@ export function CompanyDocuments() {
       setError(`Upload fehlgeschlagen (${file.name}): ${storageErr.message}`);
       return;
     }
-
-    setUploads((prev) => prev.map((u) => (u.id === itemId ? { ...u, phase: 'indexing' } : u)));
 
     try {
       const res = await apiFetch('/documents/index', {
@@ -131,10 +145,10 @@ export function CompanyDocuments() {
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
     } catch (err) {
-      setError(`Indexing fehlgeschlagen (${file.name}): ${(err as Error).message}`);
+      setError(`Indexing-Start fehlgeschlagen (${file.name}): ${(err as Error).message}`);
     } finally {
       setUploads((prev) => prev.filter((u) => u.id !== itemId));
-      await loadDocuments();
+      await loadDocuments(cid);
     }
   }
 
@@ -151,7 +165,7 @@ export function CompanyDocuments() {
     } catch (err) {
       setError(`Loeschen fehlgeschlagen: ${(err as Error).message}`);
     } finally {
-      await loadDocuments();
+      if (companyId) await loadDocuments(companyId);
     }
   }
 
@@ -250,7 +264,6 @@ function DropZone({
 
 function UploadingCard({ item }: { item: UploadingItem }) {
   const visual = visualForFilename(item.filename);
-  const label = item.phase === 'uploading' ? 'Hochladen...' : 'Indexieren...';
   return (
     <div className="overflow-hidden rounded-3xl border border-white/60 bg-white/70 p-5 backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -260,7 +273,7 @@ function UploadingCard({ item }: { item: UploadingItem }) {
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-slate-900">{item.filename}</p>
-            <p className="text-[11px] text-slate-500">{label}</p>
+            <p className="text-[11px] text-slate-500">Hochladen...</p>
           </div>
         </div>
         <Spinner />
@@ -333,7 +346,12 @@ function DocumentCard({ doc, onDelete }: { doc: DocumentRow; onDelete: () => voi
         <p className="mt-3 text-[11px] font-medium text-blue-600">Wird indexiert...</p>
       )}
       {isFailed && (
-        <p className="mt-3 text-[11px] font-medium text-rose-600">Indexing fehlgeschlagen</p>
+        <div className="mt-3 space-y-1">
+          <p className="text-[11px] font-medium text-rose-600">Indexing fehlgeschlagen</p>
+          {doc.error_message && (
+            <p className="text-[11px] text-rose-500/80 line-clamp-3">{doc.error_message}</p>
+          )}
+        </div>
       )}
     </div>
   );
