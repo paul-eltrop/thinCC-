@@ -64,16 +64,22 @@ def current_user(authorization: str | None = Header(default=None)) -> CurrentUse
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalid.")
 
-    profile = (
-        supabase_service()
-        .table("profiles")
-        .select("company_id")
-        .eq("id", user.id)
-        .single()
-        .execute()
-    )
+    try:
+        profile = (
+            supabase_service()
+            .table("profiles")
+            .select("company_id")
+            .eq("id", user.id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load profile for user {user.id}: {err}",
+        )
 
-    if not profile.data or not profile.data.get("company_id"):
+    if not profile or not profile.data or not profile.data.get("company_id"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No profile with company_id found for this user.",

@@ -2,12 +2,31 @@
 # und User+Company+Profile atomar erstellt. Vermeidet die RLS-Race-Condition
 # die im Client-seitigen Signup-Flow auftritt.
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from auth import supabase_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _cleanup_orphan(client, user_id: str, company_id: str | None = None) -> None:
+    if company_id:
+        try:
+            client.table("companies").delete().eq("id", company_id).execute()
+        except Exception as cleanup_err:
+            logger.error(
+                "Failed to cleanup orphan company %s for user %s: %s",
+                company_id, user_id, cleanup_err,
+            )
+    try:
+        client.auth.admin.delete_user(user_id)
+    except Exception as cleanup_err:
+        logger.error("Failed to cleanup orphan user %s: %s", user_id, cleanup_err)
 
 
 class SignupBody(BaseModel):
@@ -57,11 +76,11 @@ def signup(body: SignupBody) -> SignupResponse:
             .execute()
         )
     except Exception as err:
-        client.auth.admin.delete_user(user_id)
+        _cleanup_orphan(client, user_id)
         raise HTTPException(status_code=500, detail=f"Failed to create company: {err}")
 
     if not company_res.data:
-        client.auth.admin.delete_user(user_id)
+        _cleanup_orphan(client, user_id)
         raise HTTPException(status_code=500, detail="Failed to create company: no row returned.")
 
     company_id = company_res.data[0]["id"]
@@ -73,8 +92,7 @@ def signup(body: SignupBody) -> SignupResponse:
             "display_name": body.display_name.strip(),
         }).execute()
     except Exception as err:
-        client.table("companies").delete().eq("id", company_id).execute()
-        client.auth.admin.delete_user(user_id)
+        _cleanup_orphan(client, user_id, company_id)
         raise HTTPException(status_code=500, detail=f"Failed to create profile: {err}")
 
     return SignupResponse(user_id=user_id, company_id=company_id)
