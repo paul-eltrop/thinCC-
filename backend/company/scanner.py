@@ -14,7 +14,7 @@ from pipeline import retrieve
 
 logger = logging.getLogger(__name__)
 
-EVAL_MODEL = "gemini-2.5-flash"
+EVAL_MODEL = "gemini-2.5-pro"
 SCAN_SCORE_THRESHOLD = 0.5
 SCAN_TOP_K = 10
 
