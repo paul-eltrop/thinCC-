@@ -90,17 +90,8 @@ export function Navbar({ children }: { children?: React.ReactNode }) {
 
   return (
     <header className="grid grid-cols-[1fr_auto_1fr] items-center px-8 py-4">
-      <Link href="/" className="flex items-center gap-3 justify-self-start">
-        <div className="grid size-9 place-items-center rounded-2xl bg-slate-900 text-white">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5Z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-        </div>
-        <span className="text-xl font-semibold tracking-tight text-slate-900">
-          Tender Agent
-        </span>
+      <Link href="/" className="justify-self-start">
+        <img src="/logo.png" alt="tendr." className="h-16 w-auto" />
       </Link>
 
       <nav className="flex items-center gap-1 rounded-full border border-white/60 bg-white/50 p-1 backdrop-blur-xl">
