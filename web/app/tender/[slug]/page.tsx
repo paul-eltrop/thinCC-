@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Navbar } from '@/components/Navbar';
 import { apiFetch, API_BASE } from '@/lib/api';
 import { TenderFitCheck } from '@/components/TenderFitCheck';
+import { TenderDraftWrapper } from '@/components/TenderDraftWrapper';
+import { TenderExportWrapper } from '@/components/TenderExportWrapper';
 import { createClient } from '@/lib/supabase/client';
 
 type TenderRow = {
@@ -27,6 +29,17 @@ const tabs = [
   { id: 'export', label: 'Export' },
 ];
 
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+async function getToken() {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || '';
+}
+
 export default function TenderDetail() {
   const params = useParams();
   const router = useRouter();
@@ -35,6 +48,7 @@ export default function TenderDetail() {
   const [tender, setTender] = useState<TenderRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('fit-check');
   const [deleting, setDeleting] = useState(false);
 
   const [chatOpen, setChatOpen] = useState(false);
@@ -299,7 +313,7 @@ export default function TenderDetail() {
               </div>
 
               {activeTab === 'overview' && <OverviewTab tender={tender} />}
-              {activeTab === 'fit-check' && <TenderFitCheck tenderId={tender.id} />}
+              {activeTab === 'fit-check' && <TenderFitCheck tenderId={tender.id} refreshKey={refreshKey} />}
               {activeTab === 'draft' && <TenderDraftWrapper tenderId={tender.id} />}
               {activeTab === 'export' && <TenderExportWrapper tenderId={tender.id} />}
             </>
@@ -373,6 +387,55 @@ export default function TenderDetail() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function OverviewTab({ tender }: { tender: TenderRow }) {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+        <h3 className="mb-4 text-base font-semibold text-slate-900">Tender Document</h3>
+        <div className="flex items-center gap-4">
+          <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-600">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-slate-900">{tender.filename || 'No file'}</p>
+            <p className="text-xs text-slate-500">
+              {tender.file_size ? `${(tender.file_size / 1024).toFixed(0)} KB · ` : ''}
+              Status: {tender.status}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+        <h3 className="mb-4 text-base font-semibold text-slate-900">Metadata</h3>
+        <dl className="space-y-2 text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-slate-500">Name</dt>
+            <dd className="text-slate-900">{tender.name}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-slate-500">Client</dt>
+            <dd className="text-slate-900">{tender.client || '—'}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-slate-500">Deadline</dt>
+            <dd className="text-slate-900">{tender.deadline || '—'}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-slate-500">Uploaded</dt>
+            <dd className="text-slate-900">
+              {tender.uploaded_at ? new Date(tender.uploaded_at).toLocaleString('en-US') : '—'}
+            </dd>
+          </div>
+        </dl>
+      </div>
     </div>
   );
 }
