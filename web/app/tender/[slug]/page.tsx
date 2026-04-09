@@ -66,12 +66,16 @@ export default function TenderDetail() {
   const loadTender = useCallback(async () => {
     setError(null);
     try {
+      console.log('[TenderDetail] loading tender', tenderId);
       const res = await apiFetch(`/tenders/${tenderId}`);
+      console.log('[TenderDetail] response status', res.status);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        console.error('[TenderDetail] error body', body);
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
       const json = await res.json();
+      console.log('[TenderDetail] loaded keys:', Object.keys(json));
       setTender(json);
       const score = json.ranking?.score ?? json.score ?? null;
       if (score != null) setFitScore(score);
@@ -82,6 +86,7 @@ export default function TenderDetail() {
         if (draftExists || (score != null && score >= 75)) setView('draft');
       }
     } catch (err) {
+      console.error('[TenderDetail] catch error:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
@@ -300,7 +305,7 @@ export default function TenderDetail() {
           {loading ? (
             <p className="text-sm text-slate-500">Loading tender...</p>
           ) : error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{error}</div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{(console.error('[TenderDetail] RENDERING ERROR:', error), error)}</div>
           ) : tender ? (
             <>
               {view === 'fit-check' && <TenderFitCheck tenderId={tender.id} refreshKey={refreshKey} hasDraft={hasDraft} onGoToDraft={() => setView('draft')} />}

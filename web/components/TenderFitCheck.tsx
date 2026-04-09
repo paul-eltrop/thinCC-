@@ -67,17 +67,22 @@ export function TenderFitCheck({ tenderId, refreshKey, hasDraft, onGoToDraft }: 
   const loadTender = useCallback(async () => {
     setError(null);
     try {
+      console.log('[FitCheck] loading tender', tenderId);
       const res = await apiFetch(`/tenders/${tenderId}`);
+      console.log('[FitCheck] response status', res.status);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
+        console.error('[FitCheck] error body', body);
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
       const json = await res.json();
+      console.log('[FitCheck] loaded keys:', Object.keys(json), 'reqs:', (json.requirements || []).length);
       setRequirements(json.requirements || []);
       setCoverage(json.coverage || {});
       setRanking(json.ranking || null);
       setScanStatus(json.scan_status || 'pending');
     } catch (err) {
+      console.error('[FitCheck] catch error:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
@@ -336,7 +341,7 @@ export function TenderFitCheck({ tenderId, refreshKey, hasDraft, onGoToDraft }: 
 
       {error && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
-          {error}
+          {(console.error('[FitCheck] RENDERING ERROR:', error), error)}
         </div>
       )}
 
@@ -513,7 +518,18 @@ function RequirementRow({ req, cov, tenderId }: { req: Requirement; cov: Coverag
     });
 
     const url = `${window.location.origin}/share/${linkId}`;
-    await navigator.clipboard.writeText(url);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
     setSharing(false);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

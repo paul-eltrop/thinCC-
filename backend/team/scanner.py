@@ -7,7 +7,7 @@ import json
 from llm_utils import call_gemini_json
 from pipeline import retrieve
 
-EXTRACT_MODEL = "gemini-2.5-flash"
+EXTRACT_MODEL = "gemini-3.1-flash"
 EXTRACT_TOP_K = 80
 EXTRACT_SCORE_THRESHOLD = 0.0
 

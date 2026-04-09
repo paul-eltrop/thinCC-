@@ -15,7 +15,7 @@ COHERE_API_KEY = os.environ.get("COHERE_API_KEY", "")
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 3072
 LLM_MODEL = "gpt-4o"
-CLASSIFICATION_MODEL = "gemini-2.5-flash"
+CLASSIFICATION_MODEL = "gemini-3.1-flash"
 RERANK_MODEL = "rerank-v3.5"
 
 QDRANT_URL = os.environ.get("QDRANT_URL", "")
