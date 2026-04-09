@@ -338,45 +338,77 @@ function StatusPill({ status }: { status: Status }) {
 function QuestionRow({ question, state }: { question: Question; state: QuestionState }) {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const showShare = state.status === 'missing' || state.status === 'partial';
+
+  async function copyToClipboard(url: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  }
 
   async function handleShare() {
     setSharing(true);
+    setShareError(null);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSharing(false); return; }
 
-    const { data: profile } = await supabase
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      setShareError('You are not signed in. Please reload and try again.');
+      setSharing(false);
+      return;
+    }
+    const user = userData.user;
+
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('company_id')
       .eq('id', user.id)
-      .single();
-    if (!profile) { setSharing(false); return; }
+      .maybeSingle();
+    if (profileError || !profile) {
+      setShareError('Could not load your profile. Please reload and try again.');
+      setSharing(false);
+      return;
+    }
 
     const linkId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
-    await supabase.from('share_links').insert({
+    const { error: insertError } = await supabase.from('share_links').insert({
       id: linkId,
       company_id: profile.company_id,
       welcome_message: question.text,
       created_by: user.id,
     });
+    if (insertError) {
+      setShareError(`Could not create share link: ${insertError.message}`);
+      setSharing(false);
+      return;
+    }
 
     const url = `${window.location.origin}/share/${linkId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = url;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
+    const copyOk = await copyToClipboard(url);
+
     setSharing(false);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyOk) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      setShareError(`Link created but could not copy. URL: ${url}`);
+    }
   }
 
   return (
@@ -404,6 +436,11 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
           </button>
         )}
       </div>
+      {shareError && (
+        <p className="mt-3 break-words rounded-xl bg-rose-100 px-3 py-2 text-[11px] font-medium text-rose-700">
+          {shareError}
+        </p>
+      )}
     </div>
   );
 }
