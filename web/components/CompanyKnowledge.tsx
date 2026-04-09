@@ -353,7 +353,7 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
       .single();
     if (!profile) { setSharing(false); return; }
 
-    const linkId = crypto.randomUUID().slice(0, 8);
+    const linkId = crypto.randomUUID().replace(/-/g, '').slice(0, 24);
     await supabase.from('share_links').insert({
       id: linkId,
       company_id: profile.company_id,
