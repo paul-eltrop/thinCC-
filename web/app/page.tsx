@@ -45,7 +45,7 @@ export default function Dashboard() {
   }, [loadTenders]);
 
   function handleCreated(tenderId: string) {
-    addToast('Tender erstellt!', 'success');
+    addToast('Tender created!', 'success');
     router.push(`/tender/${tenderId}`);
   }
 
@@ -69,6 +69,12 @@ export default function Dashboard() {
             >
               My Company
             </Link>
+            <Link
+              href="/analytics"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Analytics
+            </Link>
           </nav>
         </div>
         <button
@@ -87,7 +93,7 @@ export default function Dashboard() {
         )}
 
         {loading ? (
-          <p className="text-sm text-slate-500">Lade Tenders...</p>
+          <p className="text-sm text-slate-500">Loading tenders...</p>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {tenders.map((tender) => (

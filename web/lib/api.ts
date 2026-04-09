@@ -11,7 +11,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session?.access_token) {
-    throw new Error('Keine Session — bitte einloggen.');
+    throw new Error('No session — please log in.');
   }
 
   const headers = new Headers(init.headers);
