@@ -43,6 +43,7 @@ alter table documents add column if not exists status text default 'ready';
 alter table documents add column if not exists chunks_indexed integer default 0;
 alter table documents add column if not exists created_by uuid references auth.users(id);
 alter table documents add column if not exists storage_path text;
+alter table documents add column if not exists error_message text;
 
 -- Index fuer schnelle Listen pro Company
 create index if not exists idx_documents_company_id on documents(company_id);

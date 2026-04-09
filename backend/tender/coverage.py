@@ -1,7 +1,8 @@
 # Coverage-Scan fuer Tender-Anforderungen: pro Requirement RAG-Chunks ziehen
-# und Gemini bewerten lassen ob abdeckbar. Spiegelt company.scanner, schreibt
-# aber RequirementCoverage statt QuestionState.
+# und Gemini bewerten lassen ob abdeckbar. Parallelisiert ueber asyncio.gather
+# mit Semaphore-Limit aus config. Spiegelt company.scanner.
 
+import asyncio
 import json
 
 from llm_utils import call_gemini_json
@@ -12,36 +13,36 @@ EVAL_MODEL = "gemini-2.5-flash"
 SCAN_SCORE_THRESHOLD = 0.5
 SCAN_TOP_K = 10
 
-EVAL_PROMPT = """Du bist ein Reviewer der prueft ob eine Tender-Anforderung anhand
-der gegebenen Quellen aus unserer Wissensbasis erfuellt werden kann.
+EVAL_PROMPT = """You are a reviewer checking whether a tender requirement can be
+satisfied based on the given sources from our knowledge base.
 
-Anforderung: {requirement}
+Requirement: {requirement}
 
-Quellen aus der Wissensbasis:
+Sources from the knowledge base:
 {chunks}
 
-Bewerte:
-- "covered": Anforderung ist vollstaendig und eindeutig belegt
-- "partial": Teile sind belegt, aber wesentliche Aspekte fehlen
-- "missing": Anforderung kann nicht oder nur sehr vage belegt werden
+Rate as:
+- "covered": requirement is fully and unambiguously supported
+- "partial": parts are supported, but key aspects are missing
+- "missing": requirement cannot be supported or only very vaguely
 
-Gib im Feld "evidence" eine kurze Begruendung (1-3 Saetze, faktenbasiert).
-Bei "partial" oder "missing" notiere im Feld "notes" was konkret fehlt.
+Give a short justification in the "evidence" field (1-3 sentences, fact-based).
+For "partial" or "missing", note in the "notes" field what is specifically missing.
 
-Antworte AUSSCHLIESSLICH als JSON mit diesem Schema:
+Respond ONLY as JSON with this schema:
 {{
   "status": "covered" | "partial" | "missing",
-  "evidence": string oder null,
-  "confidence": float zwischen 0.0 und 1.0,
-  "notes": string oder null
+  "evidence": string or null,
+  "confidence": float between 0.0 and 1.0,
+  "notes": string or null
 }}"""
 
 
 def _format_chunks(chunks: list) -> str:
     if not chunks:
-        return "(keine Quellen gefunden)"
+        return "(no sources found)"
     return "\n\n".join(
-        f"[Quelle: {c.meta.get('source_file', 'unbekannt')} | Score: {c.score:.3f}]\n{c.content}"
+        f"[source: {c.meta.get('source_file', 'unknown')} | score: {c.score:.3f}]\n{c.content}"
         for c in chunks
     )
 
@@ -71,7 +72,7 @@ def _evaluate(requirement: Requirement, chunks: list) -> dict:
             "status": "missing",
             "evidence": None,
             "confidence": 0.0,
-            "notes": "Keine relevanten Chunks im RAG gefunden.",
+            "notes": "No relevant chunks found in RAG.",
         }
 
     prompt = EVAL_PROMPT.format(
@@ -93,7 +94,7 @@ def check_requirement(requirement: Requirement, company_id: str) -> RequirementC
     evaluation = _evaluate(requirement, chunks)
 
     sources = [
-        {"source_file": c.meta.get("source_file", "unbekannt"), "score": float(c.score)}
+        {"source_file": c.meta.get("source_file", "unknown"), "score": float(c.score)}
         for c in chunks
     ]
 
@@ -108,33 +109,24 @@ def check_requirement(requirement: Requirement, company_id: str) -> RequirementC
     )
 
 
-def scan_requirements(
-    requirements: list[Requirement],
+async def check_requirement_async(
+    requirement: Requirement,
     company_id: str,
-    existing: dict[str, RequirementCoverage] | None = None,
-) -> dict[str, RequirementCoverage]:
-    """Scannt alle Requirements sequenziell. user_provided=True Eintraege werden
-    nicht ueberschrieben. Einzelne Fehler werden als 'missing' markiert."""
-    existing = existing or {}
-    result: dict[str, RequirementCoverage] = {}
-
-    for req in requirements:
-        prev = existing.get(req.id)
-        if prev and prev.user_provided:
-            result[req.id] = prev
-            continue
-
+    semaphore: asyncio.Semaphore,
+) -> RequirementCoverage:
+    """Async-Wrapper um check_requirement. Nutzt einen Semaphore-Slot und
+    laeuft im Worker-Thread, damit Event-Loop frei bleibt. Fehler werden
+    in eine 'missing'-Coverage gemappt."""
+    async with semaphore:
         try:
-            result[req.id] = check_requirement(req, company_id)
+            return await asyncio.to_thread(check_requirement, requirement, company_id)
         except Exception as err:
-            result[req.id] = RequirementCoverage(
-                requirement_id=req.id,
+            return RequirementCoverage(
+                requirement_id=requirement.id,
                 status="missing",
                 confidence=0.0,
                 evidence=None,
                 sources=[],
                 user_provided=False,
-                notes=f"Scan-Fehler: {type(err).__name__}: {err}",
+                notes=f"Scan error: {type(err).__name__}: {err}",
             )
-
-    return result
