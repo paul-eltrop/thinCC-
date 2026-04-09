@@ -18,22 +18,38 @@ export default function SharedChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [linkInvalid, setLinkInvalid] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadWelcomeMessage = async () => {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('share_links')
         .select('welcome_message')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (data?.welcome_message) {
+      if (error || !data) {
+        setMessages([{
+          role: 'assistant',
+          content: 'This share link is invalid or no longer exists. Please ask the sender for a new one.',
+        }]);
+        setLinkInvalid(true);
+        setLoaded(true);
+        return;
+      }
+
+      if (data.welcome_message) {
         setMessages([{
           role: 'assistant',
           content: `Hi! We're preparing a tender and need your help collecting some documents. Specifically: "${data.welcome_message}". Please upload the relevant files below or give context.`,
+        }]);
+      } else {
+        setMessages([{
+          role: 'assistant',
+          content: `Hi! We're preparing a tender and would appreciate your help. Please upload any relevant documents below or share context via chat.`,
         }]);
       }
       setLoaded(true);
@@ -46,31 +62,54 @@ export default function SharedChat() {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || linkInvalid) return;
 
     const userMessage: Message = { role: 'user', content: input };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    const res = await fetch(`${API_URL}/share/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        share_id: id,
-        question: input,
-        history: messages.filter(m => m.role !== 'assistant' || messages.indexOf(m) !== 0),
-      }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/share/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          share_id: id,
+          question: input,
+          history: messages.slice(1),
+        }),
+      });
 
-    const data = await res.json();
-    setMessages(prev => [...prev, { role: 'assistant', content: data.reply || data.error }]);
-    setIsLoading(false);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const detail = errBody.detail || errBody.error || `Request failed (${res.status})`;
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: res.status === 404
+            ? 'This share link no longer exists. Please ask the sender for a new one.'
+            : `Sorry, something went wrong: ${detail}`,
+        }]);
+        return;
+      }
+
+      const data = await res.json();
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.reply || 'No response received.',
+      }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Network error. Please check your connection and try again.',
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || linkInvalid) return;
 
     setIsUploading(true);
     setMessages(prev => [...prev, { role: 'user', content: `Uploading ${file.name}...` }]);
@@ -79,16 +118,47 @@ export default function SharedChat() {
     formData.append('file', file);
     formData.append('share_id', id as string);
 
-    const res = await fetch(`${API_URL}/share/chat/upload`, { method: 'POST', body: formData });
-    const data = await res.json();
+    try {
+      const res = await fetch(`${API_URL}/share/chat/upload`, { method: 'POST', body: formData });
 
-    setMessages(prev => [
-      ...prev.slice(0, -1),
-      { role: 'user', content: `Uploaded: ${file.name}` },
-      { role: 'assistant', content: data.error || `${file.name} has been indexed and is now available in the knowledge base.` },
-    ]);
-    setIsUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const detail = errBody.detail || errBody.error || `Upload failed (${res.status})`;
+        setMessages(prev => [
+          ...prev.slice(0, -1),
+          { role: 'user', content: `Failed to upload: ${file.name}` },
+          {
+            role: 'assistant',
+            content: res.status === 404
+              ? 'This share link no longer exists. Please ask the sender for a new one.'
+              : `Sorry, the upload failed: ${detail}`,
+          },
+        ]);
+        return;
+      }
+
+      const data = await res.json();
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: 'user', content: `Uploaded: ${file.name}` },
+        {
+          role: 'assistant',
+          content: data.reply || `${file.name} has been indexed and is now available in the knowledge base.`,
+        },
+      ]);
+    } catch {
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: 'user', content: `Failed to upload: ${file.name}` },
+        {
+          role: 'assistant',
+          content: 'Network error during upload. Please check your connection and try again.',
+        },
+      ]);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   if (!loaded) return null;
@@ -160,7 +230,7 @@ export default function SharedChat() {
             <div className="flex gap-3 rounded-full border border-white/60 bg-white/70 p-2 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isLoading}
+                disabled={isUploading || isLoading || linkInvalid}
                 className="rounded-full border border-white/60 bg-white/50 px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 disabled:opacity-40"
                 title="Upload PDF"
               >
@@ -173,12 +243,13 @@ export default function SharedChat() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Ask a question..."
-                className="flex-1 bg-transparent px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                disabled={linkInvalid}
+                placeholder={linkInvalid ? 'Share link unavailable' : 'Ask a question...'}
+                className="flex-1 bg-transparent px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-40"
               />
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || linkInvalid}
                 className="rounded-full bg-slate-900 px-5 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-40"
               >
                 Send
