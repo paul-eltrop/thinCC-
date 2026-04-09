@@ -53,6 +53,9 @@ class Tender:
     requirements: list[Requirement] = field(default_factory=list)
     coverage: dict[str, RequirementCoverage] = field(default_factory=dict)
     ranking: Optional[TenderRanking] = None
+    proposal_sections: list[dict] = field(default_factory=list)
+    proposal_meta: dict = field(default_factory=dict)
+    proposal_updated_at: Optional[str] = None
 
 
 def now_iso() -> str:
@@ -142,6 +145,9 @@ def load_tender_full(company_id: str, tender_id: str) -> Optional[Tender]:
         requirements=requirements,
         coverage=coverage_map,
         ranking=ranking,
+        proposal_sections=list(row.get("proposal_sections") or []),
+        proposal_meta=dict(row.get("proposal_meta") or {}),
+        proposal_updated_at=row.get("proposal_updated_at"),
     )
 
 
@@ -212,4 +218,38 @@ def serialize_tender(tender: Tender) -> dict:
         "requirements": [asdict(r) for r in tender.requirements],
         "coverage": {rid: asdict(c) for rid, c in tender.coverage.items()},
         "ranking": asdict(tender.ranking) if tender.ranking else None,
+        "proposal_sections": tender.proposal_sections,
+        "proposal_meta": tender.proposal_meta,
+        "proposal_updated_at": tender.proposal_updated_at,
     }
+
+
+def save_proposal(tender_id: str, sections: list[dict], meta: dict | None = None) -> None:
+    fields: dict = {
+        "proposal_sections": sections,
+        "proposal_updated_at": now_iso(),
+    }
+    if meta is not None:
+        fields["proposal_meta"] = meta
+    supabase_service().table("tenders").update(fields).eq("id", tender_id).execute()
+
+
+def patch_proposal_sections(tender_id: str, section_updates: list[dict]) -> list[dict]:
+    """Merged Updates in die existierenden Sections und persistiert.
+    Returnt die neue komplette Sections-Liste."""
+    row = (
+        supabase_service()
+        .table("tenders")
+        .select("proposal_sections")
+        .eq("id", tender_id)
+        .maybe_single()
+        .execute()
+    )
+    current = list((row.data or {}).get("proposal_sections") or [])
+    update_map = {u["id"]: u for u in section_updates if u.get("id")}
+    merged = [
+        {**s, **update_map[s["id"]]} if s.get("id") in update_map else s
+        for s in current
+    ]
+    save_proposal(tender_id, merged)
+    return merged

@@ -26,6 +26,8 @@ from tender.db import (
     load_tender_full,
     make_requirement_id,
     now_iso,
+    patch_proposal_sections,
+    save_proposal,
     serialize_tender,
     set_parsed_text,
     update_tender_scan_meta,
@@ -33,6 +35,7 @@ from tender.db import (
 )
 from tender.extractor_stream import stream_requirements
 from tender.promotion import promote_answers
+from tender.proposal_engine import chat_on_proposal, generate_proposal_draft
 from tender.ranking import compute_ranking
 
 router = APIRouter(prefix="/tenders", tags=["tenders"])
@@ -435,3 +438,88 @@ def promote_tender(
         raise HTTPException(status_code=500, detail=f"Promotion fehlgeschlagen: {err}")
 
     return {"promoted": promoted, "count": len(promoted)}
+
+
+class ProposalGenerateBody(BaseModel):
+    extra_context: Optional[str] = ""
+
+
+class ProposalChatBody(BaseModel):
+    message: str
+    history: list[dict] = []
+
+
+class ProposalPatchBody(BaseModel):
+    sections: list[dict]
+    meta: Optional[dict] = None
+
+
+@router.post("/{tender_id}/proposal/generate")
+def generate_proposal(
+    tender_id: str,
+    body: ProposalGenerateBody,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    tender = load_tender_full(user.company_id, tender_id)
+    if not tender:
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+    if not tender.parsed_text:
+        raise HTTPException(
+            status_code=422,
+            detail="Tender hat noch keinen geparsten Text. Bitte erst Fit-Check Scan starten.",
+        )
+
+    try:
+        result = generate_proposal_draft(
+            tender_text=tender.parsed_text,
+            company_id=user.company_id,
+            extra_context=body.extra_context or "",
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Generate fehlgeschlagen: {err}")
+
+    return {"draft": result["raw_text"], "sources_used": result["sources_used"]}
+
+
+@router.post("/{tender_id}/proposal/chat")
+def chat_proposal(
+    tender_id: str,
+    body: ProposalChatBody,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    if not body.message.strip():
+        raise HTTPException(status_code=400, detail="Nachricht darf nicht leer sein.")
+
+    tender = load_tender_full(user.company_id, tender_id)
+    if not tender:
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+
+    try:
+        result = chat_on_proposal(
+            message=body.message,
+            tender_text=tender.parsed_text or "",
+            sections=tender.proposal_sections,
+            history=body.history,
+            company_id=user.company_id,
+        )
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Chat fehlgeschlagen: {err}")
+
+    if result.get("updated_sections"):
+        merged = patch_proposal_sections(tender_id, result["updated_sections"])
+        result["sections_after_merge"] = merged
+
+    return result
+
+
+@router.patch("/{tender_id}/proposal")
+def patch_proposal(
+    tender_id: str,
+    body: ProposalPatchBody,
+    user: CurrentUser = Depends(current_user),
+) -> dict:
+    tender = load_tender_full(user.company_id, tender_id)
+    if not tender:
+        raise HTTPException(status_code=404, detail=f"Tender '{tender_id}' nicht gefunden.")
+    save_proposal(tender_id, body.sections, body.meta)
+    return {"ok": True, "section_count": len(body.sections)}
