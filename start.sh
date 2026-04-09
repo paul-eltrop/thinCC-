@@ -9,8 +9,7 @@ kill -9 $(lsof -ti :8000) 2>/dev/null
 kill -9 $(lsof -ti :3000) 2>/dev/null
 sleep 1
 
-echo "Starting backend on http://localhost:8000 ..."
-cd backend && source .venv/bin/activate && uvicorn api.main:app --reload --port 8000 &
+cd backend && python3 -m uvicorn api.main:app --reload --port 8000 &
 
 echo "Starting frontend on http://localhost:3000 ..."
 cd web && npx next dev &

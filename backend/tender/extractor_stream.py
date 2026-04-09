@@ -3,7 +3,7 @@
 # Echtzeit eine wachsende Tabelle mit extrahierten Anforderungen.
 
 import json
-from typing import Iterator
+from typing import Iterator, Optional
 
 from llm_utils import gemini_client
 
@@ -90,7 +90,7 @@ def stream_requirements(parsed_text: str) -> Iterator[dict]:
         yield tail
 
 
-def _try_parse_line(line: str) -> dict | None:
+def _try_parse_line(line: str) -> Optional[dict]:
     cleaned = line.strip().strip("`").strip()
     if not cleaned or not cleaned.startswith("{"):
         return None

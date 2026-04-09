@@ -171,7 +171,7 @@ def delete_member(
     return {"deleted": member_id}
 
 
-def _sse(event: str | None, data: dict) -> str:
+def _sse(event: Optional[str], data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False)
     if event:
         return f"event: {event}\ndata: {payload}\n\n"

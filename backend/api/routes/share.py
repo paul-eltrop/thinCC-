@@ -6,7 +6,7 @@
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from haystack.dataclasses import ChatMessage as HaystackChatMessage
@@ -104,7 +104,7 @@ def _strip_markdown(text: str) -> str:
     return text.replace("**", "").replace("##", "").strip()
 
 
-def _extract_facts(question: str, welcome_message: str) -> str | None:
+def _extract_facts(question: str, welcome_message: str) -> Optional[str]:
     llm = OpenAIChatGenerator(model=config.LLM_MODEL)
     messages = [
         HaystackChatMessage.from_system(FACT_EXTRACT_PROMPT.format(welcome_message=welcome_message)),

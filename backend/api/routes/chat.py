@@ -3,7 +3,7 @@
 # dann die naechste Agent-Frage Token-fuer-Token via Server-Sent Events.
 
 import json
-from typing import Literal, Optional
+from typing import Literal, Optional, Optional
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -26,7 +26,7 @@ class ChatTurnBody(BaseModel):
     current_question_id: Optional[str] = None
 
 
-def _sse(event: str | None, data: dict) -> str:
+def _sse(event: Optional[str], data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False)
     if event:
         return f"event: {event}\ndata: {payload}\n\n"

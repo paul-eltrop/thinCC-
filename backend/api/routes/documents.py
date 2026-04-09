@@ -1,3 +1,4 @@
+from typing import Optional
 # HTTP-Routen fuer Company-Dokumente. Upload laeuft direkt vom Browser
 # in Supabase Storage; diese Route triggert nur das Indexing in den RAG
 # und persistiert Metadaten in der Supabase documents-Tabelle. Loeschen
@@ -30,7 +31,7 @@ ALLOWED_EXTENSIONS = {
 class IndexBody(BaseModel):
     storage_path: str
     filename: str
-    file_size: int | None = None
+    file_size: Optional[int] = None
 
 
 def _validate_extension(filename: str) -> str:
@@ -70,7 +71,7 @@ def _insert_pending_row(
     storage_path: str,
     filename: str,
     suffix: str,
-    file_size: int | None,
+    file_size: Optional[int],
 ) -> dict:
     mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     row = {
@@ -90,7 +91,7 @@ def _insert_pending_row(
     return result.data[0] if result.data else row
 
 
-def _finalize_row(document_id: str, status: str, chunks_indexed: int, doc_type: str | None = None) -> dict:
+def _finalize_row(document_id: str, status: str, chunks_indexed: int, doc_type: Optional[str] = None) -> dict:
     update = {"status": status, "chunks_indexed": chunks_indexed}
     if doc_type:
         update["doc_type"] = doc_type

@@ -4,7 +4,7 @@
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Literal, Optional, Optional
 
 from auth import supabase_service
 
@@ -224,7 +224,7 @@ def serialize_tender(tender: Tender) -> dict:
     }
 
 
-def save_proposal(tender_id: str, sections: list[dict], meta: dict | None = None) -> None:
+def save_proposal(tender_id: str, sections: list[dict], meta: Optional[dict] = None) -> None:
     fields: dict = {
         "proposal_sections": sections,
         "proposal_updated_at": now_iso(),

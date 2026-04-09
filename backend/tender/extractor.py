@@ -1,3 +1,4 @@
+from typing import Optional
 # Extrahiert einen strukturierten Anforderungs-Katalog aus dem geparsten
 # Tender-Text per Gemini Flash. Output ist eine Liste typisierter Requirements
 # inkl. Importance-Ranking und is_critical-Flag fuer Deal-Breaker.
@@ -63,7 +64,7 @@ def _normalize_doc_types(values: list) -> list[str]:
     return [v for v in values if isinstance(v, str) and v in ALLOWED_DOC_TYPES]
 
 
-def _normalize_requirement(idx: int, raw: dict) -> Requirement | None:
+def _normalize_requirement(idx: int, raw: dict) -> Optional[Requirement]:
     text = (raw.get("text") or "").strip()
     if not text:
         return None

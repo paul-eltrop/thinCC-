@@ -1,3 +1,4 @@
+from typing import Optional
 # Generiert Proposal-Drafts und beantwortet Improvement-Chats via Haystack
 # OpenAIChatGenerator. Beide Funktionen sind tenant-aware: retrieve() bekommt
 # IMMER company_id und scoped damit den RAG-Pull strikt auf die eigene Company.
@@ -209,7 +210,7 @@ def chat_on_proposal(
     }
 
 
-def _extract_section_updates(text: str) -> list[dict] | None:
+def _extract_section_updates(text: str) -> Optional[list[dict]]:
     match = re.search(r"```json\s*(\[[\s\S]*?\])\s*```", text)
     if not match:
         return None

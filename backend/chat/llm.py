@@ -2,14 +2,14 @@
 # Trennt den LLM-Call von der Agent-Logik damit die testbar bleibt.
 # Yieldet Token-Deltas als plain strings.
 
-from typing import Iterator
+from typing import Iterator, Optional
 
 from openai import OpenAI
 
 import config
 from chat.agent import ChatMessage
 
-_client_instance: OpenAI | None = None
+_client_instance: Optional[OpenAI] = None
 
 
 def _client() -> OpenAI:

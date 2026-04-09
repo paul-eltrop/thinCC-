@@ -7,7 +7,7 @@ import tempfile
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -166,14 +166,14 @@ def delete_tender(tender_id: str, user: CurrentUser = Depends(current_user)) -> 
     return {"ok": True, "id": tender_id}
 
 
-def _sse(event: str | None, data: dict) -> str:
+def _sse(event: Optional[str], data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False)
     if event:
         return f"event: {event}\ndata: {payload}\n\n"
     return f"data: {payload}\n\n"
 
 
-def _normalize_requirement_dict(idx: int, tender_id: str, raw: dict) -> Requirement | None:
+def _normalize_requirement_dict(idx: int, tender_id: str, raw: dict) -> Optional[Requirement]:
     text = (raw.get("text") or "").strip()
     if not text:
         return None

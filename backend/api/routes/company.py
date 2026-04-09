@@ -1,3 +1,4 @@
+from typing import Optional
 # HTTP-Routen fuer das Company Q&A System: Fragen auflisten, Scan triggern
 # (synchron oder als SSE-Stream), Antworten speichern oder loeschen.
 # Alle Writes gehen in die Supabase company_question_states Tabelle und
@@ -225,7 +226,7 @@ def delete_answer(
     return asdict(new_state)
 
 
-def _sse(event: str | None, data: dict) -> str:
+def _sse(event: Optional[str], data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False)
     if event:
         return f"event: {event}\ndata: {payload}\n\n"

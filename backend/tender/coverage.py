@@ -1,3 +1,4 @@
+from typing import Optional
 # Coverage-Scan fuer Tender-Anforderungen: pro Requirement RAG-Chunks ziehen
 # und Gemini bewerten lassen ob abdeckbar. Spiegelt company.scanner, schreibt
 # aber RequirementCoverage statt QuestionState.
@@ -111,7 +112,7 @@ def check_requirement(requirement: Requirement, company_id: str) -> RequirementC
 def scan_requirements(
     requirements: list[Requirement],
     company_id: str,
-    existing: dict[str, RequirementCoverage] | None = None,
+    existing: Optional[dict[str, RequirementCoverage]] = None,
 ) -> dict[str, RequirementCoverage]:
     """Scannt alle Requirements sequenziell. user_provided=True Eintraege werden
     nicht ueberschrieben. Einzelne Fehler werden als 'missing' markiert."""

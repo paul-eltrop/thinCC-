@@ -1,3 +1,4 @@
+from typing import Optional
 # Generischer Helper fuer Gemini-Calls mit exponential backoff
 # bei transienten 5xx-Fehlern. Wird von scanner, extractor, coverage
 # und promotion gleichermassen benutzt.
@@ -20,7 +21,7 @@ def gemini_client() -> genai.Client:
 def _call_gemini(model: str, prompt: str, json_mime: bool) -> str:
     """Gemeinsamer Retry-Loop fuer Gemini-Calls. Retried bei 5xx mit exponential backoff."""
     client = gemini_client()
-    last_error: Exception | None = None
+    last_error: Optional[Exception] = None
     request_config = {"response_mime_type": "application/json"} if json_mime else None
 
     for attempt in range(MAX_LLM_RETRIES):

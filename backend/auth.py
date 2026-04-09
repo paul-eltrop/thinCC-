@@ -1,3 +1,4 @@
+from typing import Optional
 # Auth-Schicht: validiert Supabase JWT aus dem Authorization Header,
 # holt die company_id aus dem profiles-Table und stellt beides als
 # FastAPI-Dependency current_user fuer geschuetzte Routen bereit.
@@ -16,8 +17,8 @@ class CurrentUser:
     company_id: str
 
 
-_anon_client: Client | None = None
-_service_client: Client | None = None
+_anon_client: Optional[Client] = None
+_service_client: Optional[Client] = None
 
 
 def supabase_anon() -> Client:
@@ -40,7 +41,7 @@ def supabase_service() -> Client:
     return _service_client
 
 
-def current_user(authorization: str | None = Header(default=None)) -> CurrentUser:
+def current_user(authorization: Optional[str] = Header(default=None)) -> CurrentUser:
     """FastAPI Dependency: validiert JWT, holt user_id + company_id."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(

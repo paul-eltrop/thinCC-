@@ -1,3 +1,4 @@
+from typing import Optional
 # Pipelines fuer den Tender Agent: Indexing, Retrieval und Fit Check.
 # Indexing: Docling Parsing/Chunking, Gemini Embedding, Qdrant Store.
 # Fit Check: Chunks retrieven, LLM bewertet Match zur Ausschreibung.
@@ -65,7 +66,7 @@ def derive_doc_type(file_path: str) -> str:
     return "unknown"
 
 
-def company_filter(company_id: str, extra_filters: dict | None = None) -> dict:
+def company_filter(company_id: str, extra_filters: Optional[dict] = None) -> dict:
     """Baut einen Qdrant-Filter der auf meta.company_id einschraenkt und optional
     weitere Filter mit AND verknuepft."""
     conditions = [{"field": "meta.company_id", "operator": "==", "value": company_id}]
@@ -168,9 +169,9 @@ def build_query_pipeline(
 def retrieve(
     question: str,
     company_id: str = "",
-    filters: dict | None = None,
-    top_k: int | None = None,
-    score_threshold: float | None = None,
+    filters: Optional[dict] = None,
+    top_k: Optional[int] = None,
+    score_threshold: Optional[float] = None,
 ) -> list[Document]:
     """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional
     mit Filter nach doc_type, company_id-Tenant-Isolation, ueberschreibbarem
@@ -247,7 +248,7 @@ def fit_check(
     tender: str,
     company_id: str = "",
     extra_user_prompt: str = "",
-    filters: dict | None = None,
+    filters: Optional[dict] = None,
     system_prompt: str = FIT_CHECK_PROMPT,
 ) -> str:
     """Nimmt Tender-Text, retrievet passende Chunks (optional gefiltert nach
