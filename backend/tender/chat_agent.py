@@ -244,7 +244,7 @@ def prepare_turn(
         return None, TenderNextTurn(
             current_requirement_id=None,
             done=True,
-            system_prompt="Tender nicht gefunden.",
+            system_prompt="Tender not found.",
             ranking=None,
         )
 

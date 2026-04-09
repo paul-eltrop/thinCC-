@@ -24,36 +24,36 @@ DOC_TYPE_FOLDERS = {"cvs", "company_profile", "methodology", "reference_project"
 
 MIN_FIT_SCORE = 0.75
 
-FIT_CHECK_PROMPT = """Du bist ein erfahrener Bid Manager. Analysiere ob unser Unternehmen zu dieser Ausschreibung passt.
+FIT_CHECK_PROMPT = """You are an experienced bid manager. Analyse whether our company fits this tender.
 
-Hier sind die relevanten Abschnitte aus unserer Wissensbasis (nur Treffer mit hoher Relevanz):
+Here are the relevant sections from our knowledge base (only high-relevance hits):
 {% for doc in documents %}
 ---
-Quelle: {{ doc.meta.source_file }} | Typ: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
+Source: {{ doc.meta.source_file }} | Type: {{ doc.meta.doc_type }} | Score: {{ doc.score }}
 {{ doc.content }}
 ---
 {% endfor %}
 
-Ausschreibung:
+Tender:
 {{ tender }}
 
-Erstelle eine Fit-Analyse in exakt diesem Format:
+Produce a fit analysis in exactly this format:
 
-**Match-Score:** [Prozentsatz]% Fit
-**Staerken:** [Aufzaehlung der Staerken die wir nachweisen koennen, mit Bezug auf konkrete Chunks]
-**Luecken:** [Was verlangt wird aber in unserer Wissensbasis nicht nachweisbar ist]
-**Empfehlung:** [Bewerben / Nicht bewerben / Bewerben mit Zusatz-Input]
+**Match score:** [percentage]% fit
+**Strengths:** [list of strengths we can prove, referencing concrete chunks]
+**Gaps:** [what is required but not demonstrable in our knowledge base]
+**Recommendation:** [Apply / Do not apply / Apply with additional input]
 
-Regeln:
-- Bewerte NUR basierend auf dem bereitgestellten Kontext
-- Wenn wichtige Anforderungen nicht abgedeckt sind, senke den Score
-- Bei Luecken konkret benennen was fehlt
-- Empfehlung "Bewerben mit Zusatz-Input" wenn Score zwischen 40-70%"""
+Rules:
+- Evaluate ONLY based on the provided context
+- If key requirements are not covered, lower the score
+- For gaps, name specifically what is missing
+- Use "Apply with additional input" when the score is between 40-70%"""
 
-FIT_CHECK_USER_PROMPT = """Ausschreibung:
+FIT_CHECK_USER_PROMPT = """Tender:
 {{ tender }}
 
-Zusaetzliche Informationen vom Nutzer:
+Additional information from the user:
 {{ extra_user_prompt }}"""
 
 

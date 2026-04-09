@@ -15,36 +15,36 @@ EVAL_MODEL = "gemini-2.5-flash"
 SCAN_SCORE_THRESHOLD = 0.5
 SCAN_TOP_K = 10
 
-EVAL_PROMPT = """Du bist ein Reviewer der prueft ob eine Frage anhand der gegebenen Quellen
-beantwortet werden kann.
+EVAL_PROMPT = """You are a reviewer checking whether a question can be answered
+based on the given sources.
 
-Frage: {question}
+Question: {question}
 
-Quellen aus der Wissensbasis:
+Sources from the knowledge base:
 {chunks}
 
-Bewerte:
-- "covered": Frage ist vollstaendig und eindeutig beantwortbar
-- "partial": Teile der Frage sind belegt, aber wesentliche Aspekte fehlen
-- "missing": Frage kann nicht oder nur sehr vage beantwortet werden
+Rate as:
+- "covered": question is fully and unambiguously answerable
+- "partial": parts of the question are covered, but key aspects are missing
+- "missing": question cannot be answered or only very vaguely
 
-Gib eine kurze Antwort wenn moeglich (1-3 Saetze, faktenbasiert aus den Quellen).
-Bei "partial" oder "missing" notiere im Feld "notes" was konkret fehlt.
+Give a short answer when possible (1-3 sentences, fact-based from the sources).
+For "partial" or "missing", note in the "notes" field what is specifically missing.
 
-Antworte AUSSCHLIESSLICH als JSON mit diesem Schema:
+Respond ONLY as JSON with this schema:
 {{
   "status": "covered" | "partial" | "missing",
-  "answer": string oder null,
-  "confidence": float zwischen 0.0 und 1.0,
-  "notes": string oder null
+  "answer": string or null,
+  "confidence": float between 0.0 and 1.0,
+  "notes": string or null
 }}"""
 
 
 def _format_chunks(chunks: list) -> str:
     if not chunks:
-        return "(keine Quellen gefunden)"
+        return "(no sources found)"
     return "\n\n".join(
-        f"[Quelle: {c.meta.get('source_file', 'unbekannt')} | Score: {c.score:.3f}]\n{c.content}"
+        f"[source: {c.meta.get('source_file', 'unknown')} | score: {c.score:.3f}]\n{c.content}"
         for c in chunks
     )
 
@@ -55,7 +55,7 @@ def _evaluate_chunks(question: Question, chunks: list) -> dict:
             "status": "missing",
             "answer": None,
             "confidence": 0.0,
-            "notes": "Keine relevanten Chunks im RAG gefunden.",
+            "notes": "No relevant chunks found in RAG.",
         }
 
     prompt = EVAL_PROMPT.format(
@@ -96,7 +96,7 @@ def scan_question(question: Question, company_id: str) -> QuestionState:
     evaluation = _evaluate_chunks(question, chunks)
 
     sources = [
-        {"source_file": c.meta.get("source_file", "unbekannt"), "score": float(c.score)}
+        {"source_file": c.meta.get("source_file", "unknown"), "score": float(c.score)}
         for c in chunks
     ]
 
@@ -132,7 +132,7 @@ async def scan_question_async(
                 sources=[],
                 user_provided=False,
                 last_scanned=now_iso(),
-                notes=f"Scan-Fehler: {type(err).__name__}: {err}",
+                notes=f"Scan error: {type(err).__name__}: {err}",
             )
 
 

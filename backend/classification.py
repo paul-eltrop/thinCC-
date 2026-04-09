@@ -20,24 +20,24 @@ DOC_TYPES = [
 
 CLASSIFICATION_HEAD_CHARS = 3000
 
-CLASSIFICATION_PROMPT = """Klassifiziere das folgende Dokument in GENAU EINE Kategorie:
+CLASSIFICATION_PROMPT = """Classify the following document into EXACTLY ONE category:
 
-- cv: Lebenslauf einer Person mit Skills, Berufserfahrung, Ausbildung
-- reference_project: Beschreibung eines abgeschlossenen Projekts oder einer Case Study
-- methodology: Methodik-Dokument, Vorgehensbeschreibung, Framework, Best Practices
-- company_profile: Firmenprofil, "Ueber uns", Unternehmensbeschreibung, Capabilities
-- boilerplate: Standard-Disclaimer, Compliance-Texte, AGB, Zertifikate, juristische Texte
-- other: passt in keine der obigen Kategorien
+- cv: a person's CV with skills, work experience, education
+- reference_project: description of a completed project or case study
+- methodology: methodology document, approach description, framework, best practices
+- company_profile: company profile, "about us", company description, capabilities
+- boilerplate: standard disclaimers, compliance text, terms, certificates, legal text
+- other: fits none of the above categories
 
-Antworte AUSSCHLIESSLICH mit dem Kategorie-String (cv, reference_project, methodology,
-company_profile, boilerplate oder other). Keine Erklaerung, kein Markdown.
+Respond ONLY with the category string (cv, reference_project, methodology,
+company_profile, boilerplate or other). No explanation, no markdown.
 
-Dokument:
+Document:
 ---
 {text}
 ---
 
-Kategorie:"""
+Category:"""
 
 
 def classify_document(text: str) -> str:

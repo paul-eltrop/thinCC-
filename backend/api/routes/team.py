@@ -96,7 +96,7 @@ def create_member(
 ) -> dict:
     name = body.name.strip()
     if not name:
-        raise HTTPException(status_code=400, detail="Name darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Name must not be empty.")
 
     row = {
         "company_id": user.company_id,
@@ -113,7 +113,7 @@ def create_member(
         .data
     )
     if not inserted:
-        raise HTTPException(status_code=500, detail="Insert fehlgeschlagen.")
+        raise HTTPException(status_code=500, detail="Insert failed.")
     return inserted[0]
 
 
@@ -126,7 +126,7 @@ def update_member(
     updates: dict = {}
     if body.name is not None:
         if not body.name.strip():
-            raise HTTPException(status_code=400, detail="Name darf nicht leer sein.")
+            raise HTTPException(status_code=400, detail="Name must not be empty.")
         updates["name"] = body.name.strip()
     if body.role is not None:
         updates["role"] = body.role.strip() or None
@@ -148,7 +148,7 @@ def update_member(
         .data
     )
     if not result:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")
+        raise HTTPException(status_code=404, detail="Team member not found.")
     return result[0]
 
 
@@ -167,7 +167,7 @@ def delete_member(
         .data
     )
     if not result:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")
+        raise HTTPException(status_code=404, detail="Team member not found.")
     return {"deleted": member_id}
 
 
@@ -194,17 +194,17 @@ def scan_team_stream(user: CurrentUser = Depends(current_user)) -> StreamingResp
     def event_stream():
         sb = supabase_service()
         yield _sse("start", {})
-        yield _sse("phase", {"step": "collect", "message": "Lade Chunks aus dem RAG..."})
+        yield _sse("phase", {"step": "collect", "message": "Loading chunks from RAG..."})
 
         try:
             extracted = extract_employees(user.company_id)
         except Exception as err:
-            yield _sse("error", {"message": f"Extraktion fehlgeschlagen: {type(err).__name__}: {err}"})
+            yield _sse("error", {"message": f"Extraction failed: {type(err).__name__}: {err}"})
             return
 
         yield _sse(
             "phase",
-            {"step": "extract", "message": f"{len(extracted)} Personen erkannt"},
+            {"step": "extract", "message": f"{len(extracted)} people detected"},
         )
 
         existing_rows = (
@@ -228,7 +228,7 @@ def scan_team_stream(user: CurrentUser = Depends(current_user)) -> StreamingResp
         )
         cv_by_name = {(d["name"] or "").strip().lower(): d["id"] for d in cv_docs}
 
-        yield _sse("phase", {"step": "merge", "message": "Verknuepfe CVs..."})
+        yield _sse("phase", {"step": "merge", "message": "Linking CVs..."})
 
         added = 0
         skipped = 0
@@ -258,7 +258,7 @@ def scan_team_stream(user: CurrentUser = Depends(current_user)) -> StreamingResp
             except Exception as err:
                 yield _sse(
                     "error",
-                    {"message": f"Insert fehlgeschlagen fuer {name}: {err}"},
+                    {"message": f"Insert failed for {name}: {err}"},
                 )
                 continue
 

@@ -50,7 +50,7 @@ def get_one_question(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     state = load_state(user.company_id)
     return _question_with_state(question, state)
@@ -60,7 +60,7 @@ def get_one_question(
 async def scan_all(user: CurrentUser = Depends(current_user)) -> dict:
     questions = load_questions()
     if not questions:
-        raise HTTPException(status_code=500, detail="Kein Fragenkatalog gefunden.")
+        raise HTTPException(status_code=500, detail="No question catalog found.")
 
     existing = load_state(user.company_id)
     updated = await scan_all_questions(questions, existing, user.company_id)
@@ -80,7 +80,7 @@ def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingRespo
     aber viel schneller voll wird."""
     questions = load_questions()
     if not questions:
-        raise HTTPException(status_code=500, detail="Kein Fragenkatalog gefunden.")
+        raise HTTPException(status_code=500, detail="No question catalog found.")
 
     existing = load_state(user.company_id)
     total = len(questions)
@@ -145,7 +145,7 @@ def scan_one(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     state = load_state(user.company_id)
     existing = state.get(question_id)
@@ -168,15 +168,15 @@ def save_answer(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     if not body.answer.strip():
-        raise HTTPException(status_code=400, detail="Antwort darf nicht leer sein.")
+        raise HTTPException(status_code=400, detail="Answer must not be empty.")
 
     try:
         write_qa_to_rag(user.company_id, question_id, question.text, body.answer)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"RAG-Sync fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"RAG sync failed: {err}")
 
     new_state = update_question_state(
         user.company_id,
@@ -199,12 +199,12 @@ def delete_answer(
 ) -> dict:
     question = get_question(question_id)
     if not question:
-        raise HTTPException(status_code=404, detail=f"Question '{question_id}' nicht gefunden.")
+        raise HTTPException(status_code=404, detail=f"Question '{question_id}' not found.")
 
     try:
         delete_qa_from_rag(user.company_id, question_id)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"RAG-Loeschung fehlgeschlagen: {err}")
+        raise HTTPException(status_code=500, detail=f"RAG delete failed: {err}")
 
     new_state = update_question_state(
         user.company_id,
