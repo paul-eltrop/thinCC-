@@ -158,20 +158,25 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
     if (!previewRef.current) return;
     setIsExporting(true);
 
-    const html2pdf = (await import('html2pdf.js')).default;
-    const filename = `Proposal_${tenderName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    try {
+      const { default: html2pdf } = await import('html2pdf.js');
+      const filename = `Proposal_${tenderName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-    const opts: Record<string, unknown> = {
-      margin: [15, 15, 15, 15],
-      filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    };
-    await html2pdf().set(opts).from(previewRef.current).save();
-
-    setIsExporting(false);
+      const opts: Record<string, unknown> = {
+        margin: [15, 15, 15, 15],
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      };
+      await html2pdf().set(opts).from(previewRef.current).save();
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      alert('PDF export failed. Please try again later.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!hasSections) {
@@ -184,8 +189,8 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
               <polyline points="14 2 14 8 20 8" />
             </svg>
           </div>
-          <p className="text-sm font-medium text-slate-700">Kein Draft vorhanden</p>
-          <p className="text-xs text-slate-500">Erstelle zuerst einen Draft im Draft-Tab</p>
+          <p className="text-sm font-medium text-slate-700">No draft available</p>
+          <p className="text-xs text-slate-500">Create a draft in the Draft tab first</p>
         </div>
       </div>
     );
@@ -198,15 +203,15 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
         <h3 className="text-base font-semibold text-slate-900 mb-4">Pre-Submit Check</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-2xl bg-emerald-50 p-4">
-            <p className="text-[11px] font-medium text-emerald-700 mb-1">Gefuellte Sections</p>
+            <p className="text-[11px] font-medium text-emerald-700 mb-1">Filled Sections</p>
             <p className="text-2xl font-semibold text-emerald-700">{filledSections.length}/{sections.length}</p>
           </div>
           <div className={`rounded-2xl p-4 ${emptySections.length > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-            <p className={`text-[11px] font-medium mb-1 ${emptySections.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Leere Sections</p>
+            <p className={`text-[11px] font-medium mb-1 ${emptySections.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Empty Sections</p>
             <p className={`text-2xl font-semibold ${emptySections.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{emptySections.length}</p>
           </div>
           <div className={`rounded-2xl p-4 ${placeholderSections.length > 0 ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-            <p className={`text-[11px] font-medium mb-1 ${placeholderSections.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Offene Placeholders</p>
+            <p className={`text-[11px] font-medium mb-1 ${placeholderSections.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Open Placeholders</p>
             <p className={`text-2xl font-semibold ${placeholderSections.length > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{placeholderSections.length}</p>
           </div>
         </div>
@@ -216,13 +221,13 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
             {emptySections.map((s) => (
               <div key={s.id} className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5">
                 <span className="size-1.5 rounded-full bg-amber-500" />
-                <span className="text-xs text-amber-700"><strong>{s.title}</strong> ist leer</span>
+                <span className="text-xs text-amber-700"><strong>{s.title}</strong> is empty</span>
               </div>
             ))}
             {placeholderSections.map((s) => (
               <div key={s.id} className="flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5">
                 <span className="size-1.5 rounded-full bg-amber-500" />
-                <span className="text-xs text-amber-700"><strong>{s.title}</strong> enthaelt Placeholders</span>
+                <span className="text-xs text-amber-700"><strong>{s.title}</strong> contains placeholders</span>
               </div>
             ))}
           </div>
@@ -231,7 +236,7 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
 
       {/* Export Button */}
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">{sections.length} Sections · {filledSections.length} gefuellt</p>
+        <p className="text-xs text-slate-500">{sections.length} sections · {filledSections.length} filled</p>
         <button
           onClick={exportPdf}
           disabled={isExporting || filledSections.length === 0}
@@ -240,7 +245,7 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
           {isExporting ? (
             <>
               <div className="size-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              Wird exportiert...
+              Exporting...
             </>
           ) : (
             <>
@@ -249,7 +254,7 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              Als PDF exportieren
+              Export as PDF
             </>
           )}
         </button>
@@ -292,7 +297,7 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
                 {executiveSummary.content ? (
                   renderMarkdownContent(executiveSummary.content)
                 ) : (
-                  <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>[Kein Inhalt]</p>
+                  <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>[No content]</p>
                 )}
               </div>
             )}
@@ -307,7 +312,7 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
                 {section.content ? (
                   renderMarkdownContent(section.content)
                 ) : (
-                  <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>[Kein Inhalt]</p>
+                  <p style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '11px' }}>[No content]</p>
                 )}
               </div>
             ))}
@@ -315,7 +320,7 @@ export function ExportView({ sections, tenderName, proposalMeta }: ExportViewPro
 
           {/* Footer */}
           <div style={{ padding: '16px 48px', borderTop: '1px solid #e2e8f0', fontSize: '10px', color: '#94a3b8', textAlign: 'center' }}>
-            Generated with thinCC · {new Date().toLocaleDateString('de-DE')}
+            Generated with thinCC · {new Date().toLocaleDateString('en-US')}
           </div>
         </div>
       </div>

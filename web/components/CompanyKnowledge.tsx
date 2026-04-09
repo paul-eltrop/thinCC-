@@ -81,7 +81,7 @@ export function CompanyKnowledge() {
   async function reEvaluate() {
     setScanning(true);
     setError(null);
-    setProgress({ current: 0, total: items.length || 20, questionText: 'Starte Scan...' });
+    setProgress({ current: 0, total: items.length || 20, questionText: 'Starting scan...' });
 
     try {
       const res = await apiFetch('/company/scan/stream', { method: 'POST' });
@@ -89,7 +89,7 @@ export function CompanyKnowledge() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `HTTP ${res.status}`);
       }
-      if (!res.body) throw new Error('Kein Stream-Body');
+      if (!res.body) throw new Error('No stream body');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -115,7 +115,7 @@ export function CompanyKnowledge() {
           const payload = JSON.parse(line.slice(5).trim());
 
           if (currentEvent === 'start') {
-            setProgress({ current: 0, total: payload.total, questionText: 'Starte...' });
+            setProgress({ current: 0, total: payload.total, questionText: 'Starting...' });
           } else if (currentEvent === 'progress') {
             setProgress({
               current: payload.current,
@@ -133,7 +133,7 @@ export function CompanyKnowledge() {
           } else if (currentEvent === 'done') {
             // handled below
           } else if (currentEvent === 'error') {
-            setError(payload.message || 'Unbekannter Fehler');
+            setError(payload.message || 'Unknown error');
           }
           currentEvent = null;
         }
@@ -156,7 +156,7 @@ export function CompanyKnowledge() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, current_question_id: qId }),
       });
-      if (!res.body) throw new Error('Kein Stream-Body');
+      if (!res.body) throw new Error('No stream body');
 
       setChatMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
 
@@ -248,7 +248,7 @@ export function CompanyKnowledge() {
           <div>
             <h3 className="text-base font-semibold text-slate-900">Knowledge Base</h3>
             <p className="mt-1 text-xs text-slate-500">
-              {items.length} Fragen ·{' '}
+              {items.length} questions ·{' '}
               <span className="text-emerald-700">{counts.covered} covered</span> ·{' '}
               <span className="text-amber-700">{counts.partial} partial</span> ·{' '}
               <span className="text-rose-700">{counts.missing} missing</span> ·{' '}
@@ -260,7 +260,7 @@ export function CompanyKnowledge() {
             disabled={scanning || loading || items.length === 0}
             className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {scanning ? 'Wird ausgewertet...' : 'Re-evaluate'}
+            {scanning ? 'Evaluating...' : 'Re-evaluate'}
           </button>
         </div>
       </div>
@@ -274,7 +274,7 @@ export function CompanyKnowledge() {
       {scanning && progress && <ScanProgressCard progress={progress} />}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Lade Fragen...</p>
+        <p className="text-sm text-slate-500">Loading questions...</p>
       ) : (
         <div className="space-y-3">
           {items.map(({ question, state }) => (
@@ -342,7 +342,7 @@ function ScanProgressCard({ progress }: { progress: ScanProgress }) {
     <div className="rounded-3xl border border-white/60 bg-white/70 p-5 backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-slate-900">
-          Scanne Frage {progress.current} von {progress.total}
+          Scanning question {progress.current} of {progress.total}
         </p>
         <span className="text-xs font-semibold text-slate-600">{Math.round(pct)}%</span>
       </div>
@@ -390,7 +390,7 @@ function ChatPanel({
         <div>
           <h3 className="text-base font-semibold text-slate-900">Onboarding Chat</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Beantworte die offenen Fragen direkt im Chat
+            Answer open questions directly in the chat
           </p>
         </div>
         <div className="flex gap-2">
@@ -400,7 +400,7 @@ function ChatPanel({
               disabled={scanning}
               className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Chat starten
+              Start chat
             </button>
           ) : (
             <button
@@ -408,7 +408,7 @@ function ChatPanel({
               disabled={chatStreaming}
               className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-50"
             >
-              Beenden
+              End chat
             </button>
           )}
         </div>
@@ -421,7 +421,7 @@ function ChatPanel({
             className="mb-3 h-80 space-y-3 overflow-y-auto rounded-2xl border border-white/60 bg-white/40 p-4"
           >
             {chatMessages.length === 0 && (
-              <p className="text-xs text-slate-400">Lade erste Frage...</p>
+              <p className="text-xs text-slate-400">Loading first question...</p>
             )}
             {chatMessages.map((m, i) => (
               <div
@@ -440,7 +440,7 @@ function ChatPanel({
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Antwort tippen..."
+              placeholder="Type your answer..."
               value={chatInput}
               onChange={(e) => onInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onSend()}
@@ -452,7 +452,7 @@ function ChatPanel({
               disabled={chatStreaming || chatDone || !chatInput.trim() || !currentQuestionId}
               className="rounded-full bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Senden
+              Send
             </button>
           </div>
         </>

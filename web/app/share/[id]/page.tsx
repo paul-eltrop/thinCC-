@@ -85,7 +85,7 @@ export default function SharedChat() {
     setMessages(prev => [
       ...prev.slice(0, -1),
       { role: 'user', content: `Uploaded: ${file.name}` },
-      { role: 'assistant', content: data.error || `${file.name} wurde indexiert und steht jetzt in der Wissensbasis zur Verfuegung.` },
+      { role: 'assistant', content: data.error || `${file.name} has been indexed and is now available in the knowledge base.` },
     ]);
     setIsUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
