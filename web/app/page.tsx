@@ -7,6 +7,7 @@ import { TenderCard } from '@/components/TenderCard';
 import { NewTenderModal } from '@/components/Modal';
 import { ToastContainer, useToast } from '@/components/Toast';
 import { apiFetch } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 
 type TenderRow = {
   id: string;
@@ -21,6 +22,7 @@ type TenderRow = {
 export default function Dashboard() {
   const router = useRouter();
   const [tenders, setTenders] = useState<TenderRow[]>([]);
+  const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -41,8 +43,15 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    loadTenders();
-  }, [loadTenders]);
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.replace('/login'); return; }
+      setAuthed(true);
+      loadTenders();
+    });
+  }, [loadTenders, router]);
+
+  if (!authed) return null;
 
   function handleCreated(tenderId: string) {
     addToast('Tender erstellt!', 'success');
