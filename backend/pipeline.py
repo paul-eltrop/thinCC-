@@ -16,6 +16,7 @@ from haystack_integrations.components.embedders.google_genai import GoogleGenAID
 from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 
 import config
+from classification import DocumentClassifier
 from document_store import document_store
 
 DOC_TYPE_FOLDERS = {"cvs", "company_profile", "methodology", "reference_project"}
@@ -64,8 +65,17 @@ def derive_doc_type(file_path: str) -> str:
     return "unknown"
 
 
+def company_filter(company_id: str, extra_filters: dict | None = None) -> dict:
+    """Baut einen Qdrant-Filter der auf meta.company_id einschraenkt und optional
+    weitere Filter mit AND verknuepft."""
+    conditions = [{"field": "meta.company_id", "operator": "==", "value": company_id}]
+    if extra_filters:
+        conditions.append(extra_filters)
+    return {"operator": "AND", "conditions": conditions}
+
+
 def build_indexing_pipeline() -> Pipeline:
-    """Baut die Haystack Pipeline: Docling Parsing/Chunking -> Gemini Embedding -> Qdrant Writer."""
+    """Baut die Haystack Pipeline: Docling -> per-Chunk Klassifikation -> Gemini Embedding -> Qdrant."""
     pipeline = Pipeline()
 
     pipeline.add_component(
@@ -77,6 +87,7 @@ def build_indexing_pipeline() -> Pipeline:
             ),
         ),
     )
+    pipeline.add_component("classifier", DocumentClassifier())
     pipeline.add_component(
         "embedder",
         GoogleGenAIDocumentEmbedder(model=config.EMBEDDING_MODEL),
@@ -86,31 +97,47 @@ def build_indexing_pipeline() -> Pipeline:
         DocumentWriter(document_store=document_store),
     )
 
-    pipeline.connect("converter", "embedder")
+    pipeline.connect("converter", "classifier")
+    pipeline.connect("classifier", "embedder")
     pipeline.connect("embedder", "writer")
 
     return pipeline
 
 
 def index_documents(paths: list[str], company_id: str = "") -> dict:
-    """Nimmt Dateipfade, parst/chunked/embedded sie und speichert alles in Qdrant mit company_id."""
+    """Indexiert Dateien in Qdrant. Jeder Chunk wird einzeln per Gemini Flash
+    klassifiziert und bekommt seinen eigenen doc_type in den Metadaten.
+    Wenn company_id gesetzt ist, wird sie in jedes Chunk-Meta geschrieben.
+    Returnt die Anzahl geschriebener Chunks und die klassifizierten Documents."""
     pipeline = build_indexing_pipeline()
 
+    classified_documents: list[Document] = []
+    documents_written = 0
+
     for path in paths:
-        doc_type = derive_doc_type(path)
+        meta = {"source_file": Path(path).name}
+        if company_id:
+            meta["company_id"] = company_id
         result = pipeline.run(
-            {"converter": {"sources": [path], "meta": {
-                "source_file": Path(path).name,
-                "doc_type": doc_type,
-                "company_id": company_id,
-            }}}
+            {"converter": {"sources": [path], "meta": meta}},
+            include_outputs_from={"classifier"},
         )
+        classified_documents.extend(result.get("classifier", {}).get("documents", []))
+        documents_written += result.get("writer", {}).get("documents_written", 0)
 
-    return result
+    return {
+        "documents_written": documents_written,
+        "classified_documents": classified_documents,
+    }
 
 
-def build_query_pipeline() -> Pipeline:
-    """Baut die Retrieval Pipeline: Query embedden -> Top-K Chunks aus Qdrant (Score >= 0.75)."""
+def build_query_pipeline(
+    top_k: int = config.TOP_K,
+    score_threshold: float = MIN_FIT_SCORE,
+) -> Pipeline:
+    """Baut die Retrieval Pipeline: Query embedden -> Top-K Chunks aus Qdrant.
+    Top-K und score_threshold koennen ueberschrieben werden — der Scanner nutzt
+    z.B. einen niedrigeren Threshold weil er mehr Recall als Precision will."""
     pipeline = Pipeline()
 
     pipeline.add_component(
@@ -121,8 +148,8 @@ def build_query_pipeline() -> Pipeline:
         "retriever",
         QdrantEmbeddingRetriever(
             document_store=document_store,
-            top_k=config.TOP_K,
-            score_threshold=MIN_FIT_SCORE,
+            top_k=top_k,
+            score_threshold=score_threshold,
         ),
     )
 
@@ -131,16 +158,20 @@ def build_query_pipeline() -> Pipeline:
     return pipeline
 
 
-def company_filter(company_id: str, extra_filters: dict = None) -> dict:
-    conditions = [{"field": "meta.company_id", "operator": "==", "value": company_id}]
-    if extra_filters:
-        conditions.append(extra_filters)
-    return {"operator": "AND", "conditions": conditions}
-
-
-def retrieve(question: str, company_id: str = "", filters: dict = None) -> list[Document]:
-    """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional mit Filter nach doc_type."""
-    pipeline = build_query_pipeline()
+def retrieve(
+    question: str,
+    company_id: str = "",
+    filters: dict | None = None,
+    top_k: int | None = None,
+    score_threshold: float | None = None,
+) -> list[Document]:
+    """Embedded die Frage und gibt passende Chunks aus Qdrant zurueck. Optional
+    mit Filter nach doc_type, company_id-Tenant-Isolation, ueberschreibbarem
+    top_k und score_threshold."""
+    pipeline = build_query_pipeline(
+        top_k=top_k if top_k is not None else config.TOP_K,
+        score_threshold=score_threshold if score_threshold is not None else MIN_FIT_SCORE,
+    )
 
     retriever_params = {}
     if company_id:
@@ -209,10 +240,11 @@ def fit_check(
     tender: str,
     company_id: str = "",
     extra_user_prompt: str = "",
-    filters: dict = None,
+    filters: dict | None = None,
     system_prompt: str = FIT_CHECK_PROMPT,
 ) -> str:
-    """Nimmt Tender-Text, retrievet passende Chunks und laesst GPT-4o eine Fit-Analyse erstellen."""
+    """Nimmt Tender-Text, retrievet passende Chunks (optional gefiltert nach
+    company_id) und laesst GPT-4o eine Fit-Analyse erstellen."""
     pipeline = build_fit_check_pipeline(system_prompt=system_prompt)
 
     retriever_params = {}

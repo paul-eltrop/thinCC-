@@ -5,6 +5,7 @@ docling
 docling-haystack
 google-genai-haystack
 fastapi
-uvicorn
-supabase
+uvicorn[standard]
 python-multipart
+openai
+supabase
