@@ -8,7 +8,7 @@ from company.rag_sync import write_qa_to_rag
 from llm_utils import call_gemini_json
 from tender.db import Tender
 
-PROMOTION_MODEL = "gemini-2.5-flash"
+PROMOTION_MODEL = "gemini-3.1-flash"
 
 PROMOTION_PROMPT = """You are a knowledge manager. Below are answers a bidder gave
 during a tender chat. For each answer decide whether it is a generic company fact

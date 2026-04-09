@@ -1,51 +1,54 @@
-# Generischer Helper fuer Gemini-Calls mit exponential backoff
-# bei transienten 5xx-Fehlern. Wird von scanner, extractor, coverage
-# und promotion gleichermassen benutzt.
+# Generischer Helper fuer LLM-Calls mit Retry bei transienten Fehlern.
+# Wird von scanner, extractor, coverage und promotion benutzt.
+# Nutzt OpenAI gpt-4o als Backend.
 
 import time
 
-from google import genai
-from google.genai import errors as genai_errors
+from openai import OpenAI
 
 import config
 
 MAX_LLM_RETRIES = 3
 RETRY_BASE_DELAY = 2.0
 
+LLM_MODEL = "gpt-4o"
 
-def gemini_client() -> genai.Client:
-    return genai.Client(api_key=config.GOOGLE_API_KEY)
+_client: OpenAI | None = None
 
 
-def _call_gemini(model: str, prompt: str, json_mime: bool) -> str:
-    """Gemeinsamer Retry-Loop fuer Gemini-Calls. Retried bei 5xx mit exponential backoff."""
-    client = gemini_client()
+def openai_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI(api_key=config.OPENAI_API_KEY)
+    return _client
+
+
+def _call_openai(model: str, prompt: str, json_mode: bool) -> str:
+    client = openai_client()
     last_error: Exception | None = None
-    request_config = {"response_mime_type": "application/json"} if json_mime else None
 
     for attempt in range(MAX_LLM_RETRIES):
         try:
-            response = client.models.generate_content(
+            response = client.chat.completions.create(
                 model=model,
-                contents=prompt,
-                config=request_config,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"} if json_mode else None,
+                temperature=0.2,
             )
-            return response.text
-        except genai_errors.ServerError as err:
+            return response.choices[0].message.content or ""
+        except Exception as err:
             last_error = err
             if attempt < MAX_LLM_RETRIES - 1:
                 time.sleep(RETRY_BASE_DELAY * (2 ** attempt))
                 continue
             raise
 
-    raise last_error if last_error else RuntimeError("Gemini call failed without exception")
+    raise last_error if last_error else RuntimeError("LLM call failed without exception")
 
 
 def call_gemini_json(model: str, prompt: str) -> str:
-    """Ruft Gemini mit JSON-Mime-Type auf, retried bei 5xx mit exponential backoff."""
-    return _call_gemini(model, prompt, json_mime=True)
+    return _call_openai(LLM_MODEL, prompt, json_mode=True)
 
 
 def call_gemini_text(model: str, prompt: str) -> str:
-    """Ruft Gemini mit Plain-Text-Output auf, retried bei 5xx mit exponential backoff."""
-    return _call_gemini(model, prompt, json_mime=False)
+    return _call_openai(LLM_MODEL, prompt, json_mode=False)

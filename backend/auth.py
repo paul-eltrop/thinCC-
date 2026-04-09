@@ -69,7 +69,7 @@ def current_user(authorization: str | None = Header(default=None)) -> CurrentUse
         .table("profiles")
         .select("company_id")
         .eq("id", user.id)
-        .single()
+        .maybe_single()
         .execute()
     )
 

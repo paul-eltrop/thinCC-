@@ -5,9 +5,9 @@
 import json
 from typing import Iterator
 
-from llm_utils import gemini_client
+from llm_utils import openai_client
 
-EXTRACTOR_MODEL = "gemini-2.5-flash"
+EXTRACTOR_MODEL = "gpt-4o"
 MAX_TENDER_CHARS = 60000
 
 EXTRACTION_PROMPT = """You are an experienced bid manager reading a tender. Your
@@ -61,20 +61,21 @@ Tender:
 
 
 def stream_requirements(parsed_text: str) -> Iterator[dict]:
-    """Streamt Gemini-Output zeilenweise. Yieldet ein dict pro vollstaendiger
-    JSON-Zeile. Fehlerhafte Zeilen werden uebersprungen."""
     truncated = parsed_text[:MAX_TENDER_CHARS]
     prompt = EXTRACTION_PROMPT.format(tender_text=truncated)
 
-    client = gemini_client()
-    response_stream = client.models.generate_content_stream(
+    client = openai_client()
+    response_stream = client.chat.completions.create(
         model=EXTRACTOR_MODEL,
-        contents=prompt,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        stream=True,
     )
 
     buffer = ""
     for chunk in response_stream:
-        text = getattr(chunk, "text", None)
+        delta = chunk.choices[0].delta if chunk.choices else None
+        text = delta.content if delta else None
         if not text:
             continue
         buffer += text

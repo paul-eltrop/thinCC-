@@ -9,7 +9,7 @@ from llm_utils import call_gemini_json
 from pipeline import retrieve
 from tender.db import Requirement, RequirementCoverage
 
-EVAL_MODEL = "gemini-2.5-flash"
+EVAL_MODEL = "gemini-3.1-flash"
 SCAN_SCORE_THRESHOLD = 0.5
 SCAN_TOP_K = 10
 
