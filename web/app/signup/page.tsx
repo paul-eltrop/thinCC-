@@ -42,7 +42,10 @@ export default function Signup() {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (signInError) {
-      setError(signInError.message);
+      setError(
+        'Your account was created, but the automatic login failed. ' +
+        'Please go to the login page and sign in with your credentials.',
+      );
       setLoading(false);
       return;
     }
