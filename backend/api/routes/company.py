@@ -1,10 +1,13 @@
-# HTTP-Routen fuer das Company Q&A System: Fragen auflisten, Scan triggern,
-# Antworten speichern oder loeschen. Schreiboperationen gehen sowohl in den
-# JSON-State (pro company_id) als auch (per RAG-Sync) als Document in Qdrant.
+# HTTP-Routen fuer das Company Q&A System: Fragen auflisten, Scan triggern
+# (synchron oder als SSE-Stream), Antworten speichern oder loeschen.
+# Alle Writes gehen in die Supabase company_question_states Tabelle und
+# fuer Antworten zusaetzlich als Chunk in Qdrant.
 
+import json
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from auth import CurrentUser, current_user
@@ -65,6 +68,80 @@ def scan_all(user: CurrentUser = Depends(current_user)) -> dict:
         "scanned": len(updated),
         "states": {qid: asdict(qs) for qid, qs in updated.items()},
     }
+
+
+@router.post("/scan/stream")
+def scan_all_stream(user: CurrentUser = Depends(current_user)) -> StreamingResponse:
+    """SSE-Variante von /company/scan: yieldet pro Frage progress + result events,
+    damit das Frontend einen determinate Ladebalken anzeigen kann."""
+    questions = load_questions()
+    if not questions:
+        raise HTTPException(status_code=500, detail="Kein Fragenkatalog gefunden.")
+
+    existing = load_state(user.company_id)
+    total = len(questions)
+
+    def event_stream():
+        yield _sse("start", {"total": total})
+
+        for index, question in enumerate(questions):
+            current = index + 1
+            yield _sse(
+                "progress",
+                {
+                    "current": current,
+                    "total": total,
+                    "question_id": question.id,
+                    "question_text": question.text,
+                },
+            )
+
+            previous = existing.get(question.id)
+            try:
+                new_state = scan_question(question, user.company_id)
+                update_question_state(
+                    user.company_id,
+                    question.id,
+                    status=new_state.status,
+                    answer=new_state.answer,
+                    confidence=new_state.confidence,
+                    sources=new_state.sources,
+                    user_provided=bool(previous and previous.user_provided),
+                    last_scanned=new_state.last_scanned,
+                    notes=new_state.notes,
+                )
+                yield _sse(
+                    "result",
+                    {
+                        "question_id": question.id,
+                        "status": new_state.status,
+                        "skipped": False,
+                    },
+                )
+            except Exception as err:
+                update_question_state(
+                    user.company_id,
+                    question.id,
+                    status="missing",
+                    answer=None,
+                    confidence=0.0,
+                    sources=[],
+                    user_provided=bool(previous and previous.user_provided),
+                    last_scanned=now_iso(),
+                    notes=f"Scan-Fehler: {type(err).__name__}: {err}",
+                )
+                yield _sse(
+                    "result",
+                    {
+                        "question_id": question.id,
+                        "status": "missing",
+                        "error": f"{type(err).__name__}: {err}",
+                    },
+                )
+
+        yield _sse("done", {"total_scanned": total})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/scan/{question_id}")
@@ -146,3 +223,10 @@ def delete_answer(
         notes=None,
     )
     return asdict(new_state)
+
+
+def _sse(event: str | None, data: dict) -> str:
+    payload = json.dumps(data, ensure_ascii=False)
+    if event:
+        return f"event: {event}\ndata: {payload}\n\n"
+    return f"data: {payload}\n\n"

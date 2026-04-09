@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { apiFetch } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 
 interface ModalProps {
   isOpen: boolean;
@@ -37,65 +39,159 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
 interface NewTenderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, client: string) => void;
+  onCreated: (tenderId: string) => void;
 }
 
-export function NewTenderModal({ isOpen, onClose, onCreate }: NewTenderModalProps) {
+const TENDER_BUCKET = 'company_tenders';
+
+export function NewTenderModal({ isOpen, onClose, onCreated }: NewTenderModalProps) {
   const [name, setName] = useState('');
   const [client, setClient] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  function reset() {
+    setName('');
+    setClient('');
+    setDeadline('');
+    setFile(null);
+    setError(null);
+    setSubmitting(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function close() {
+    if (submitting) return;
+    reset();
+    onClose();
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (name.trim() && client.trim()) {
-      onCreate(name.trim(), client.trim());
-      setName('');
-      setClient('');
-      onClose();
+    if (!name.trim() || !file) return;
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Nur PDF-Dateien werden unterstuetzt.');
+      return;
     }
-  };
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Nicht eingeloggt.');
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
+      if (!profile?.company_id) throw new Error('Company-ID nicht gefunden.');
+
+      const path = `${profile.company_id}/${crypto.randomUUID()}-${file.name}`;
+      const { error: storageErr } = await supabase.storage
+        .from(TENDER_BUCKET)
+        .upload(path, file, { upsert: false, contentType: 'application/pdf' });
+      if (storageErr) throw new Error(`Upload fehlgeschlagen: ${storageErr.message}`);
+
+      const res = await apiFetch('/tenders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storage_path: path,
+          filename: file.name,
+          file_size: file.size,
+          name: name.trim(),
+          client: client.trim() || null,
+          deadline: deadline || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `HTTP ${res.status}`);
+      }
+      const tender = await res.json();
+      reset();
+      onClose();
+      onCreated(tender.id);
+    } catch (err) {
+      setError((err as Error).message);
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="New Tender">
+    <Modal isOpen={isOpen} onClose={close} title="Neuer Tender">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Tender Name
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Enter tender name"
+            placeholder="z.B. Stadtbibliothek Muenchen 2026"
             required
+            className="w-full rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-sm outline-none focus:bg-white"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Client/Contracting Authority
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Kunde</label>
           <input
             type="text"
             value={client}
             onChange={(e) => setClient(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Enter client name"
-            required
+            placeholder="optional"
+            className="w-full rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-sm outline-none focus:bg-white"
           />
         </div>
-        <div className="flex justify-end gap-3 pt-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Deadline</label>
+          <input
+            type="date"
+            value={deadline}
+            onChange={(e) => setDeadline(e.target.value)}
+            className="w-full rounded-2xl border border-white/60 bg-white/70 px-4 py-2 text-sm outline-none focus:bg-white"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Tender PDF</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            required
+            className="w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-slate-800"
+          />
+          {file && (
+            <p className="mt-1 text-xs text-slate-500">{file.name} ({(file.size / 1024).toFixed(0)} KB)</p>
+          )}
+        </div>
+
+        {error && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-700">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            onClick={close}
+            disabled={submitting}
+            className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50"
           >
-            Cancel
+            Abbrechen
           </button>
           <button
             type="submit"
-            className="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            disabled={submitting || !name.trim() || !file}
+            className="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            Tender erstellen
+            {submitting ? 'Lade hoch...' : 'Erstellen'}
           </button>
         </div>
       </form>

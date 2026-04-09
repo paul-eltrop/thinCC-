@@ -58,3 +58,27 @@ def write_qa_to_rag(
 
 def delete_qa_from_rag(company_id: str, question_id: str) -> None:
     document_store.delete_documents([qa_chunk_id(company_id, question_id)])
+
+
+def write_share_artifact(
+    company_id: str,
+    artifact_id: str,
+    content: str,
+    doc_type: str,
+    source_label: str,
+) -> int:
+    """Schreibt einen beliebigen Text-Chunk vom Share-Chat in Qdrant. Wird
+    sowohl fuer collection_summary (am Chat-Ende) als auch fuer
+    chat_extracted_info (Facts pro User-Turn) verwendet."""
+    document = Document(
+        id=f"share_{company_id}_{artifact_id}",
+        content=content,
+        meta={
+            "source_file": source_label,
+            "doc_type": doc_type,
+            "company_id": company_id,
+        },
+    )
+    pipeline = _build_qa_pipeline()
+    result = pipeline.run({"embedder": {"documents": [document]}})
+    return result.get("writer", {}).get("documents_written", 0)

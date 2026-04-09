@@ -17,17 +17,18 @@ def gemini_client() -> genai.Client:
     return genai.Client(api_key=config.GOOGLE_API_KEY)
 
 
-def call_gemini_json(model: str, prompt: str) -> str:
-    """Ruft Gemini mit JSON-Mime-Type auf, retried bei 5xx mit exponential backoff."""
+def _call_gemini(model: str, prompt: str, json_mime: bool) -> str:
+    """Gemeinsamer Retry-Loop fuer Gemini-Calls. Retried bei 5xx mit exponential backoff."""
     client = gemini_client()
-    last_error = None
+    last_error: Exception | None = None
+    request_config = {"response_mime_type": "application/json"} if json_mime else None
 
     for attempt in range(MAX_LLM_RETRIES):
         try:
             response = client.models.generate_content(
                 model=model,
                 contents=prompt,
-                config={"response_mime_type": "application/json"},
+                config=request_config,
             )
             return response.text
         except genai_errors.ServerError as err:
@@ -37,4 +38,14 @@ def call_gemini_json(model: str, prompt: str) -> str:
                 continue
             raise
 
-    raise last_error
+    raise last_error if last_error else RuntimeError("Gemini call failed without exception")
+
+
+def call_gemini_json(model: str, prompt: str) -> str:
+    """Ruft Gemini mit JSON-Mime-Type auf, retried bei 5xx mit exponential backoff."""
+    return _call_gemini(model, prompt, json_mime=True)
+
+
+def call_gemini_text(model: str, prompt: str) -> str:
+    """Ruft Gemini mit Plain-Text-Output auf, retried bei 5xx mit exponential backoff."""
+    return _call_gemini(model, prompt, json_mime=False)

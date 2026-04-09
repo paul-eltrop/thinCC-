@@ -5,6 +5,7 @@
 from haystack.utils import Secret
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 import config
@@ -16,6 +17,7 @@ PAYLOAD_INDEXES = [
     {"field_name": "meta.source_file", "field_schema": "keyword"},
     {"field_name": "meta.question_id", "field_schema": "keyword"},
     {"field_name": "meta.company_id", "field_schema": "keyword"},
+    {"field_name": "meta.document_id", "field_schema": "keyword"},
 ]
 
 if config.QDRANT_URL and config.QDRANT_API_KEY:
@@ -74,6 +76,28 @@ def ensure_payload_indexes() -> None:
             )
         except UnexpectedResponse:
             pass
+
+
+def delete_chunks_by_document_id(document_id: str) -> int:
+    """Loescht alle Qdrant-Chunks die zu einem document_id gehoeren via Filter-Delete.
+    Haystack kann nur per ID loeschen, deshalb umgehen wir hier den DocumentStore
+    und reden direkt mit dem qdrant_client. Returnt 0 wenn nicht gegen Cloud."""
+    if not (config.QDRANT_URL and config.QDRANT_API_KEY):
+        return 0
+
+    client = QdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY)
+    selector = qdrant_models.FilterSelector(
+        filter=qdrant_models.Filter(
+            must=[
+                qdrant_models.FieldCondition(
+                    key="meta.document_id",
+                    match=qdrant_models.MatchValue(value=document_id),
+                )
+            ]
+        )
+    )
+    client.delete(collection_name=COLLECTION_NAME, points_selector=selector)
+    return 1
 
 
 ensure_payload_indexes()

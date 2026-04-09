@@ -2,7 +2,7 @@
 # Score 0-100, prueft auf kritische Luecken und leitet eine Empfehlung ab.
 # Reine Math, kein LLM.
 
-from tender.state import Recommendation, Requirement, RequirementCoverage, TenderRanking
+from tender.db import Recommendation, Requirement, RequirementCoverage, TenderRanking
 
 WEIGHTS = {"critical": 4.0, "high": 2.0, "medium": 1.0, "low": 0.5}
 STATUS_FACTOR = {"covered": 1.0, "partial": 0.5, "missing": 0.0}

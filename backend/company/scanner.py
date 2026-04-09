@@ -121,13 +121,11 @@ def scan_all_questions(
 
     for q in questions:
         existing = existing_state.get(q.id)
-        if existing and existing.user_provided:
-            existing.last_scanned = now_iso()
-            updated[q.id] = existing
-            continue
-
+        was_user_provided = bool(existing and existing.user_provided)
         try:
-            updated[q.id] = scan_question(q, company_id)
+            new_state = scan_question(q, company_id)
+            new_state.user_provided = was_user_provided
+            updated[q.id] = new_state
         except Exception as err:
             updated[q.id] = QuestionState(
                 question_id=q.id,
@@ -135,7 +133,7 @@ def scan_all_questions(
                 answer=None,
                 confidence=0.0,
                 sources=[],
-                user_provided=False,
+                user_provided=was_user_provided,
                 last_scanned=now_iso(),
                 notes=f"Scan-Fehler: {type(err).__name__}: {err}",
             )
