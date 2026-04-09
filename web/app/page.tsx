@@ -81,7 +81,8 @@ export default function Dashboard() {
         {loading ? (
           <p className="text-sm text-slate-500">Loading tenders...</p>
         ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+            <TenderCard isNewCard onClick={() => setIsNewModalOpen(true)} />
             {tenders.map((tender) => (
               <Link key={tender.id} href={`/tender/${tender.id}`}>
                 <TenderCard
@@ -94,7 +95,6 @@ export default function Dashboard() {
                 />
               </Link>
             ))}
-            <TenderCard isNewCard onClick={() => setIsNewModalOpen(true)} />
           </div>
         )}
       </main>
