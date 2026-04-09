@@ -255,41 +255,40 @@ export default function TenderDetail() {
     >
       <Navbar />
 
-      <header className="flex items-center justify-between px-8 py-3">
-        {tender && (
-          <>
-            <div>
-              <Link href="/" className="text-xs text-slate-500 hover:text-slate-700">
-                ← Back to Tenders
-              </Link>
-              <h2 className="mt-1 text-2xl font-semibold text-slate-900">{tender.name}</h2>
-              <p className="mt-0.5 text-sm text-slate-600">
-                {tender.client || 'No client'}{tender.deadline && ` · ${tender.deadline}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {view !== 'fit-check' && (
-                <button
-                  onClick={() => setView('fit-check')}
-                  className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-white"
-                >
-                  Back to Fit-Check
-                </button>
-              )}
+      {tender && (
+        <div className="flex items-center justify-between px-8 py-2">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-xs text-slate-500 hover:text-slate-700">
+              ← Back to Tenders
+            </Link>
+            <span className="text-xs text-slate-300">|</span>
+            <h2 className="text-sm font-semibold text-slate-900">{tender.name}</h2>
+            <span className="text-xs text-slate-500">
+              {tender.client || 'No client'}{tender.deadline && ` · ${tender.deadline}`}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {view !== 'fit-check' && (
               <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="rounded-full border border-rose-200 bg-rose-50 px-4 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                onClick={() => setView('fit-check')}
+                className="rounded-full border border-white/60 bg-white/70 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-white"
               >
-                Delete
+                Back to Fit-Check
               </button>
-            </div>
-          </>
-        )}
-      </header>
+            )}
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
 
-      <main className="flex-1 px-8 pb-24">
-        <div className="mx-auto max-w-6xl">
+      <main className="flex-1 px-8 pb-32">
+        <div className="mx-auto max-w-3xl">
           {loading ? (
             <p className="text-sm text-slate-500">Loading tender...</p>
           ) : error ? (
@@ -307,7 +306,7 @@ export default function TenderDetail() {
       </main>
 
       {tender && (
-        <div className="fixed bottom-6 left-1/2 z-50 w-full max-w-2xl -translate-x-1/2 px-4">
+        <div className="fixed bottom-6 left-0 right-0 z-50 mx-auto w-full max-w-3xl px-8">
           <input
             ref={fileInputRef}
             type="file"
