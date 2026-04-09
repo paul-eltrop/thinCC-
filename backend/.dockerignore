@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.env
+.env.local
+.env.*
+evals/
+data/legacy/
+*.md
+.git/
+.DS_Store

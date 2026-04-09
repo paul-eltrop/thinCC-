@@ -1,6 +1,8 @@
-# FastAPI Skeleton fuer den TenderAgent. Stellt aktuell nur Health- und
-# Root-Endpunkt bereit; Upload-, Chat-, Tender- und Voice-Routen folgen
-# in den naechsten Schritten. CORS ist auf den Next.js Dev-Server gepinnt.
+# FastAPI Skeleton fuer den TenderAgent. CORS-Origins werden ueber die
+# Env-Variable CORS_ORIGINS (komma-separiert) gesteuert; Default ist der
+# Next.js Dev-Server damit lokales Setup ohne Aenderung weiterlaeuft.
+
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,9 +19,15 @@ app.include_router(chat.router)
 app.include_router(tenders.router)
 app.include_router(share.router)
 
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
