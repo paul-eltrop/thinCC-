@@ -89,8 +89,11 @@ export default function Dashboard() {
                   tender={{
                     id: tender.id,
                     name: tender.name,
-                    client: tender.client || '—',
+                    client: tender.client || '',
                     status: (tender.status as 'new' | 'fit-check' | 'drafting' | 'submitted') || 'new',
+                    deadline: tender.deadline,
+                    filename: tender.filename,
+                    uploaded_at: tender.uploaded_at,
                   }}
                 />
               </Link>

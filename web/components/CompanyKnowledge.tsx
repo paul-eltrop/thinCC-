@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 
 type Status = 'covered' | 'partial' | 'missing' | 'unscanned';
 
@@ -72,6 +73,22 @@ export function CompanyKnowledge() {
 
   useEffect(() => {
     loadItems();
+  }, [loadItems]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel('company-question-states')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'company_question_states',
+      }, () => {
+        loadItems();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [loadItems]);
 
   useEffect(() => {
@@ -242,8 +259,8 @@ export function CompanyKnowledge() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-white/60 bg-white/70 p-5 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-base font-semibold text-slate-900">Knowledge Base</h3>
@@ -273,15 +290,18 @@ export function CompanyKnowledge() {
 
       {scanning && progress && <ScanProgressCard progress={progress} />}
 
-      {loading ? (
-        <p className="text-sm text-slate-500">Loading questions...</p>
-      ) : (
-        <div className="space-y-3">
-          {items.map(({ question, state }) => (
-            <QuestionRow key={question.id} question={question} state={state} />
-          ))}
-        </div>
-      )}
+      <div className="rounded-3xl border border-white/60 bg-white/70 p-5 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+        <h3 className="mb-3 text-base font-semibold text-slate-900">Questions</h3>
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading questions...</p>
+        ) : (
+          <div className="max-h-52 space-y-2 overflow-y-auto pr-2">
+            {items.map(({ question, state }) => (
+              <QuestionRow key={question.id} question={question} state={state} />
+            ))}
+          </div>
+        )}
+      </div>
 
       <ChatPanel
         scanning={scanning}
@@ -316,6 +336,38 @@ function StatusPill({ status }: { status: Status }) {
 }
 
 function QuestionRow({ question, state }: { question: Question; state: QuestionState }) {
+  const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const showShare = state.status === 'missing' || state.status === 'partial';
+
+  async function handleShare() {
+    setSharing(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSharing(false); return; }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single();
+    if (!profile) { setSharing(false); return; }
+
+    const linkId = crypto.randomUUID().slice(0, 8);
+    await supabase.from('share_links').insert({
+      id: linkId,
+      company_id: profile.company_id,
+      welcome_message: question.text,
+      created_by: user.id,
+    });
+
+    const url = `${window.location.origin}/share/${linkId}`;
+    await navigator.clipboard.writeText(url);
+    setSharing(false);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="rounded-2xl border border-white/60 bg-white/70 p-4 backdrop-blur-xl">
       <div className="flex items-start gap-3">
@@ -331,6 +383,15 @@ function QuestionRow({ question, state }: { question: Question; state: QuestionS
             )}
           </p>
         </div>
+        {showShare && (
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="shrink-0 rounded-full border border-white/60 bg-white/70 px-3 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 disabled:opacity-50"
+          >
+            {copied ? 'Copied!' : sharing ? '...' : 'Share'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -385,12 +446,12 @@ function ChatPanel({
   onInput: (v: string) => void;
 }) {
   return (
-    <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <div className="rounded-3xl border border-white/60 bg-white/70 p-5 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Onboarding Chat</h3>
+          <h3 className="text-base font-semibold text-slate-900">Answer Questions via Chat</h3>
           <p className="mt-1 text-xs text-slate-500">
-            Answer open questions directly in the chat
+            Provide missing information interactively
           </p>
         </div>
         <div className="flex gap-2">
@@ -418,7 +479,7 @@ function ChatPanel({
         <>
           <div
             ref={chatScrollRef}
-            className="mb-3 h-80 space-y-3 overflow-y-auto rounded-2xl border border-white/60 bg-white/40 p-4"
+            className="mb-3 h-64 space-y-3 overflow-y-auto rounded-2xl border border-white/60 bg-white/40 p-4"
           >
             {chatMessages.length === 0 && (
               <p className="text-xs text-slate-400">Loading first question...</p>
