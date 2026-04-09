@@ -5,7 +5,7 @@
 import json
 
 from llm_utils import call_gemini_json
-from tender.state import Requirement
+from tender.db import Requirement
 
 EXTRACTOR_MODEL = "gemini-2.5-flash"
 MAX_TENDER_CHARS = 60000

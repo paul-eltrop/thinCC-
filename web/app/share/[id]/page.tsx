@@ -31,7 +31,10 @@ export default function SharedChat() {
         .single();
 
       if (data?.welcome_message) {
-        setMessages([{ role: 'assistant', content: `Hi! We're preparing a tender and need your help collecting some documents. Specifically: "${data.welcome_message}". Please upload the relevant files below or give context.` }]);
+        setMessages([{
+          role: 'assistant',
+          content: `Hi! We're preparing a tender and need your help collecting some documents. Specifically: "${data.welcome_message}". Please upload the relevant files below or give context.`,
+        }]);
       }
       setLoaded(true);
     };
@@ -50,7 +53,7 @@ export default function SharedChat() {
     setInput('');
     setIsLoading(true);
 
-    const res = await fetch(`${API_URL}/chat`, {
+    const res = await fetch(`${API_URL}/share/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -76,7 +79,7 @@ export default function SharedChat() {
     formData.append('file', file);
     formData.append('share_id', id as string);
 
-    const res = await fetch(`${API_URL}/chat/upload`, { method: 'POST', body: formData });
+    const res = await fetch(`${API_URL}/share/chat/upload`, { method: 'POST', body: formData });
     const data = await res.json();
 
     setMessages(prev => [

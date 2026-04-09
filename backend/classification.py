@@ -2,11 +2,11 @@
 # von Typen. Wird beim Upload aufgerufen damit jeder Chunk im RAG mit
 # verlaesslichem doc_type landet — Voraussetzung fuer gefilterte Retrieval.
 
-from google import genai
 from haystack import component
 from haystack.dataclasses import Document
 
 import config
+from llm_utils import call_gemini_text
 
 DOC_TYPES = [
     "cv",
@@ -41,23 +41,24 @@ Kategorie:"""
 
 
 def classify_document(text: str) -> str:
-    """Schickt die ersten 3000 Zeichen an Gemini und gibt einen der DOC_TYPES zurueck."""
+    """Schickt die ersten 3000 Zeichen an Gemini und gibt einen der DOC_TYPES zurueck.
+    Faellt bei wiederholten Gemini-Fehlern auf 'other' zurueck, statt die ganze
+    Indexing-Pipeline zu killen — ein einzelner unklassifizierter Chunk ist
+    weniger schlimm als ein verlorener Upload."""
     if not config.GOOGLE_API_KEY:
         return "other"
 
-    client = genai.Client(api_key=config.GOOGLE_API_KEY)
     prompt = CLASSIFICATION_PROMPT.format(text=text[:3000])
 
-    response = client.models.generate_content(
-        model=CLASSIFICATION_MODEL,
-        contents=prompt,
-    )
-
-    label = response.text.strip().lower().replace("`", "").replace("*", "")
-
-    if label not in DOC_TYPES:
+    try:
+        raw = call_gemini_text(CLASSIFICATION_MODEL, prompt)
+    except Exception as err:
+        print(f"[classification] Gemini call failed, falling back to 'other': {err}")
         return "other"
 
+    label = raw.strip().lower().replace("`", "").replace("*", "")
+    if label not in DOC_TYPES:
+        return "other"
     return label
 
 

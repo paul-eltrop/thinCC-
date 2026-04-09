@@ -6,7 +6,7 @@ import json
 
 from company.rag_sync import write_qa_to_rag
 from llm_utils import call_gemini_json
-from tender.state import Tender
+from tender.db import Tender
 
 PROMOTION_MODEL = "gemini-2.5-flash"
 

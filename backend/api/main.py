@@ -5,13 +5,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import chat, company, documents, share, tenders
+from api.routes import chat, company, documents, share, team, tenders
 from document_store import COLLECTION_NAME, document_store
 
 app = FastAPI(title="TenderAgent API", version="0.1.0")
 
 app.include_router(documents.router)
 app.include_router(company.router)
+app.include_router(team.router)
 app.include_router(chat.router)
 app.include_router(tenders.router)
 app.include_router(share.router)
