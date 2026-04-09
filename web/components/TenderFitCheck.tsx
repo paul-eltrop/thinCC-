@@ -306,7 +306,7 @@ export function TenderFitCheck({ tenderId, refreshKey }: { tenderId: string; ref
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ScoreHeroCard
         ranking={ranking}
         scanning={scanning}
@@ -329,8 +329,8 @@ export function TenderFitCheck({ tenderId, refreshKey }: { tenderId: string; ref
         </div>
       )}
 
-      <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="rounded-3xl border border-white/60 bg-white/70 p-5 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-slate-900">Requirements</h3>
             <p className="mt-1 text-xs text-slate-500">
@@ -348,7 +348,7 @@ export function TenderFitCheck({ tenderId, refreshKey }: { tenderId: string; ref
             No requirements yet. Start a scan above.
           </p>
         ) : (
-          <div className="max-h-36 space-y-2 overflow-y-auto pr-2">
+          <div className="max-h-44 space-y-2 overflow-y-auto pr-2">
             {requirements.map((req) => (
               <RequirementRow
                 key={req.id}
@@ -409,32 +409,32 @@ function ScoreHeroCard({
         : 'bg-slate-100 text-slate-600';
 
   return (
-    <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-      <div className="flex items-start gap-6">
+    <div className="rounded-3xl border border-white/60 bg-white/70 p-5 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+      <div className="flex items-start gap-5">
         <div
-          className="grid size-32 shrink-0 place-items-center rounded-full text-white transition-all duration-300"
+          className="grid size-20 shrink-0 place-items-center rounded-full text-white transition-all duration-300"
           style={{ background: `conic-gradient(${ringColor} ${ringValue * 3.6}deg, #F1F5F9 0deg)` }}
         >
-          <div className="grid size-28 place-items-center rounded-full bg-white">
+          <div className="grid size-[4.25rem] place-items-center rounded-full bg-white">
             {showScore ? (
               <div className="text-center">
-                <div className="text-3xl font-semibold text-slate-900">{Math.round(score)}</div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Score</div>
+                <div className="text-xl font-semibold text-slate-900">{Math.round(score)}</div>
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">Score</div>
               </div>
             ) : scanning ? (
               <div className="text-center">
-                <div className="text-2xl font-semibold text-slate-900">{Math.round(progress)}%</div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">Scanning</div>
+                <div className="text-lg font-semibold text-slate-900">{Math.round(progress)}%</div>
+                <div className="text-[9px] uppercase tracking-wide text-slate-500">Scanning</div>
               </div>
             ) : (
-              <div className="text-center text-xs text-slate-400">No scan yet</div>
+              <div className="text-center text-[10px] text-slate-400">No scan</div>
             )}
           </div>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="mb-1 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-slate-900">Fit-Check</h3>
+              <h3 className="text-sm font-semibold text-slate-900">Fit-Check</h3>
               {recLabel && (
                 <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${recColor}`}>
                   {recLabel}
@@ -454,7 +454,7 @@ function ScoreHeroCard({
               {scanning ? 'Scanning...' : hasRequirements ? 'Re-Scan' : 'Start Fit-Check'}
             </button>
           </div>
-          <p className="text-sm text-slate-600">
+          <p className="line-clamp-3 text-xs text-slate-600">
             {ranking?.reasoning || (scanStatus === 'pending'
               ? 'Click "Start Fit-Check" to extract requirements and check them against your company knowledge.'
               : 'No assessment available yet.')}
