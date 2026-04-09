@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Navbar } from '@/components/Navbar';
 import { apiFetch } from '@/lib/api';
 import { TenderFitCheck } from '@/components/TenderFitCheck';
 import { TenderDraftWrapper } from '@/components/TenderDraftWrapper';
@@ -21,10 +22,48 @@ type TenderRow = {
 };
 
 const tabs = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'fit-check', label: 'Fit-Check' },
-  { id: 'draft', label: 'Draft' },
-  { id: 'export', label: 'Export' },
+  {
+    id: 'overview',
+    label: 'Overview',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+      </svg>
+    ),
+  },
+  {
+    id: 'fit-check',
+    label: 'Fit-Check',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+  },
+  {
+    id: 'draft',
+    label: 'Draft',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838.838-2.872a2 2 0 0 1 .506-.855Z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'export',
+    label: 'Export',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" x2="12" y1="15" y2="3" />
+      </svg>
+    ),
+  },
 ];
 
 export default function TenderDetail() {
@@ -79,24 +118,7 @@ export default function TenderDetail() {
         background: `radial-gradient(ellipse 90% 60% at 0% 0%, #E8F1FE 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 100% 0%, #FDE8E8 0%, transparent 50%), radial-gradient(ellipse 80% 70% at 50% 100%, #EFE5FE 0%, transparent 55%), #F7F3FB`,
       }}
     >
-      <header className="flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="text-[28px] font-semibold tracking-tight text-slate-900 hover:opacity-70">
-            Tender Agent
-          </Link>
-          <nav className="flex gap-6">
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-              Tenders
-            </Link>
-            <Link href="/company" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-              My Company
-            </Link>
-            <Link href="/analytics" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-              Analytics
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="px-8 pb-8">
         <div className="mx-auto max-w-6xl">
@@ -130,17 +152,18 @@ export default function TenderDetail() {
                 </button>
               </div>
 
-              <div className="mb-8 flex gap-6 border-b border-slate-200">
+              <div className="mb-8 flex items-center gap-1 rounded-full border border-white/60 bg-white/50 p-1 backdrop-blur-xl w-fit">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`pb-3 px-1 text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
                       activeTab === tab.id
-                        ? 'border-b-2 border-blue-500 text-blue-600'
-                        : 'text-slate-500 hover:text-slate-700'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-white/70'
                     }`}
                   >
+                    <span className={activeTab === tab.id ? 'text-white' : 'text-slate-400'}>{tab.icon}</span>
                     {tab.label}
                   </button>
                 ))}

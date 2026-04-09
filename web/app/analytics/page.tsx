@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Navbar } from '@/components/Navbar';
 import { apiFetch } from '@/lib/api';
 
 type Tender = {
@@ -92,22 +93,7 @@ export default function AnalyticsPage() {
         background: `radial-gradient(ellipse 90% 60% at 0% 0%, #E8F1FE 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 100% 0%, #FDE8E8 0%, transparent 50%), radial-gradient(ellipse 80% 70% at 50% 100%, #EFE5FE 0%, transparent 55%), #F7F3FB`,
       }}
     >
-      <header className="flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-8">
-          <h1 className="text-[28px] font-semibold tracking-tight text-slate-900">
-            Tender Agent
-          </h1>
-          <nav className="flex gap-6">
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-              Tenders
-            </Link>
-            <Link href="/company" className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-              My Company
-            </Link>
-            <span className="text-sm font-medium text-slate-900">Analytics</span>
-          </nav>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="px-8 pb-12 space-y-8">
         {error && (
