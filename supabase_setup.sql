@@ -62,6 +62,8 @@ create table share_links (
   company_id uuid not null references companies(id) on delete cascade,
   welcome_message text,
   created_by uuid references auth.users(id),
+  tender_id text,
+  requirement_id text,
   created_at timestamptz default now()
 );
 

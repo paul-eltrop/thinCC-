@@ -49,7 +49,7 @@ def _format_chunks(chunks: list) -> str:
 def _retrieve_for_requirement(requirement: Requirement, company_id: str) -> list:
     filters = None
     if requirement.related_doc_types:
-        allowed = list(requirement.related_doc_types) + ["qa_answer"]
+        allowed = list(requirement.related_doc_types) + ["qa_answer", "chat_extracted_info", "collection_summary"]
         filters = {
             "field": "meta.doc_type",
             "operator": "in",
