@@ -72,10 +72,19 @@ Rules:
 - Use ### for sub-sections within a section
 - Use - for bullet lists
 - Use **text** for emphasis
-- Use only information from the provided context
-- Where information is missing, mark it with [PLACEHOLDER: what needs to be inserted here]
-- Each section should be substantial, not just headers
+- Use ONLY verifiable information from the provided context. NEVER invent names, numbers, dates, prices or team members.
+- NEVER use [PLACEHOLDER] markers
+- If ANY information for a section is missing or uncertain, set content to EXACTLY "" (empty string). Do NOT write partial content, do NOT guess, do NOT make up data.
+- A section is either COMPLETE with real data or EMPTY. There is no in-between.
+- Each section that HAS real data should be substantial, not just headers
 - Adapt the number and titles of the sections to the tender — the structure above is a guideline
+- Add a top-level field "missing_info" as an array of objects with DETAILED questions. Each object has: {"section": "section title", "questions": ["specific question 1", "specific question 2", ...]}
+- The questions must be concrete and actionable, e.g.:
+  - BAD: "Please provide team details"
+  - GOOD: ["Who is the project lead and how many days will they work?", "List each team member with their role, daily rate, and allocated days", "Are there any external subcontractors involved?"]
+  - BAD: "Please provide pricing"
+  - GOOD: ["What is the daily rate for each team member?", "Are there travel costs? If so, estimated total?", "Are there any equipment or license costs?", "What is the overhead/indirect cost percentage?"]
+- Every section with content "" MUST have a corresponding entry in missing_info with at least 2-3 specific questions
 - Respond ONLY with the JSON object, no additional text"""
 
 CHAT_SYSTEM_PROMPT = """You are an experienced bid manager and proposal reviewer. The user is working on a proposal draft and needs help.
@@ -210,21 +219,21 @@ def chat_on_proposal(
 
 
 def _extract_section_updates(text: str) -> list[dict] | None:
-    match = re.search(r"```json\s*(\[[\s\S]*?\])\s*```", text)
-    if not match:
+    matches = re.findall(r"```json\s*(\[[\s\S]*?\])\s*```", text)
+    if not matches:
         return None
-    try:
-        parsed = json.loads(match.group(1))
-    except (ValueError, KeyError):
-        return None
-    if not isinstance(parsed, list):
-        return None
-    cleaned = [
-        {"id": s["id"], "title": s["title"], "content": s["content"]}
-        for s in parsed
-        if isinstance(s, dict) and "id" in s and "title" in s and "content" in s
-    ]
-    return cleaned or None
+    all_sections = []
+    for block in matches:
+        try:
+            parsed = json.loads(block)
+        except (ValueError, KeyError):
+            continue
+        if not isinstance(parsed, list):
+            continue
+        for s in parsed:
+            if isinstance(s, dict) and "id" in s and "title" in s and "content" in s:
+                all_sections.append({"id": s["id"], "title": s["title"], "content": s["content"]})
+    return all_sections or None
 
 
 def _strip_json_block(text: str) -> str:

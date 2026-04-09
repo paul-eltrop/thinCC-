@@ -26,6 +26,7 @@ interface ProposalChatProps {
 export interface ProposalChatHandle {
   sendMessage: (text: string) => void;
   prefillInput: (text: string) => void;
+  injectAssistantMessage: (text: string) => void;
 }
 
 export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
@@ -88,6 +89,9 @@ export const ProposalChat = forwardRef<ProposalChatHandle, ProposalChatProps>(
       prefillInput: (text: string) => {
         setInput(text);
         inputRef.current?.focus();
+      },
+      injectAssistantMessage: (text: string) => {
+        setMessages((prev) => [...prev, { role: 'assistant', content: text }]);
       },
     }));
 

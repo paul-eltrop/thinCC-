@@ -43,7 +43,7 @@ type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 type Phase = { step: 'parse' | 'extract' | 'scan'; message: string };
 
-export function TenderFitCheck({ tenderId, refreshKey }: { tenderId: string; refreshKey?: number }) {
+export function TenderFitCheck({ tenderId, refreshKey, hasDraft, onGoToDraft }: { tenderId: string; refreshKey?: number; hasDraft?: boolean; onGoToDraft?: () => void }) {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [coverage, setCoverage] = useState<Record<string, Coverage>>({});
   const [ranking, setRanking] = useState<Ranking | null>(null);
@@ -307,6 +307,17 @@ export function TenderFitCheck({ tenderId, refreshKey }: { tenderId: string; ref
 
   return (
     <div className="space-y-4">
+      {hasDraft && onGoToDraft && (
+        <button
+          onClick={onGoToDraft}
+          className="flex w-full items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/70 px-5 py-3 backdrop-blur-xl"
+        >
+          <span className="text-sm font-medium text-blue-700">A draft already exists for this tender.</span>
+          <span className="rounded-full bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+            Open Draft
+          </span>
+        </button>
+      )}
       <ScoreHeroCard
         ranking={ranking}
         scanning={scanning}

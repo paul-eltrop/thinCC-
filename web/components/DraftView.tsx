@@ -19,10 +19,17 @@ const DEFAULT_SECTIONS: ProposalSection[] = [
   { id: 'pricing', title: 'Price', content: '' },
 ];
 
+interface MissingInfo {
+  section: string;
+  question?: string;
+  questions?: string[];
+}
+
 interface ParsedProposal {
   sections: ProposalSection[];
   title?: string;
   contractingAuthority?: string;
+  missingInfo: MissingInfo[];
 }
 
 function parseSectionsFromResponse(raw: string): ParsedProposal | null {
@@ -33,6 +40,10 @@ function parseSectionsFromResponse(raw: string): ParsedProposal | null {
     const parsed = JSON.parse(jsonMatch[0]);
     if (!Array.isArray(parsed.sections)) return null;
 
+    const missingInfo: MissingInfo[] = Array.isArray(parsed.missing_info)
+      ? parsed.missing_info.filter((m: { section?: string; question?: string; questions?: string[] }) => m.section && (m.question || m.questions?.length))
+      : [];
+
     return {
       sections: parsed.sections.map((s: { id?: string; title?: string; content?: string }, i: number) => ({
         id: s.id || `section-${i}`,
@@ -41,6 +52,7 @@ function parseSectionsFromResponse(raw: string): ParsedProposal | null {
       })),
       title: parsed.title,
       contractingAuthority: parsed.contracting_authority,
+      missingInfo,
     };
   } catch {
     return null;
@@ -109,10 +121,33 @@ export function DraftView({ tenderId, hasParsedText, sections, onSectionsChange,
       const data = await res.json();
       const parsed = parseSectionsFromResponse(data.draft);
       if (parsed) {
-        onSectionsChange(parsed.sections);
         onMetaChange({ title: parsed.title, contractingAuthority: parsed.contractingAuthority });
-      } else {
-        onSectionsChange(DEFAULT_SECTIONS);
+      }
+
+      const allSections = parsed ? parsed.sections : [...DEFAULT_SECTIONS];
+      const missingTitles = new Set((parsed?.missingInfo ?? []).map((m) => m.section.toLowerCase()));
+
+      const isSectionIncomplete = (s: ProposalSection) => {
+        if (!s.content.trim()) return true;
+        if (missingTitles.has(s.title.toLowerCase())) return true;
+        if (/\[placeholder|not available|\[tbd\]|n\/a\]/i.test(s.content)) return true;
+        return false;
+      };
+
+      const completeSections = allSections.filter((s) => !isSectionIncomplete(s));
+      const incompleteSections = allSections.filter((s) => isSectionIncomplete(s));
+      onSectionsChange(completeSections);
+
+      if (incompleteSections.length > 0) {
+        const blocks = incompleteSections.map((s) => {
+          const info = parsed?.missingInfo.find((m) => m.section.toLowerCase() === s.title.toLowerCase());
+          const questions = info?.questions ?? (info?.question ? [info.question] : ['Please provide the details for this section.']);
+          const questionLines = questions.map((q) => `   - ${q}`).join('\n');
+          return `**${s.title}**\n${questionLines}`;
+        }).join('\n\n');
+        chatRef.current?.injectAssistantMessage(
+          `I've drafted the sections where I had enough data. The following sections are not yet in the document because I need more information:\n\n${blocks}\n\nPlease answer the questions above and I'll add the sections to the draft.`
+        );
       }
     } catch (err) {
       setError((err as Error).message);
@@ -172,13 +207,13 @@ export function DraftView({ tenderId, hasParsedText, sections, onSectionsChange,
   }
 
   return (
-    <div className="flex h-[calc(100vh-220px)] gap-6">
+    <div className="flex h-[calc(100vh-100px)] gap-4">
       {error && (
         <div className="absolute top-2 right-2 max-w-sm rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-700">
           {error}
         </div>
       )}
-      <div className={`min-w-0 transition-all duration-300 ease-out ${artifactOpen ? 'w-1/2' : 'w-full max-w-3xl mx-auto'}`}>
+      <div className={`min-w-0 transition-all duration-300 ease-out ${artifactOpen ? 'flex-1' : 'w-full max-w-3xl mx-auto'}`}>
         <ProposalChat
           ref={chatRef}
           tenderId={tenderId}
@@ -193,7 +228,7 @@ export function DraftView({ tenderId, hasParsedText, sections, onSectionsChange,
 
       {artifactOpen && (
         <div
-          className={`w-1/2 min-w-0 transition-all duration-300 ease-out ${
+          className={`w-[calc(210mm+2rem)] shrink-0 min-w-0 transition-all duration-300 ease-out ${
             artifactVisible
               ? 'translate-x-0 opacity-100'
               : 'translate-x-8 opacity-0'

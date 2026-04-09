@@ -48,6 +48,8 @@ export default function TenderDetail() {
   const [view, setView] = useState<'fit-check' | 'draft' | 'export'>('fit-check');
   const [fitScore, setFitScore] = useState<number | null>(null);
   const [showScoreWarning, setShowScoreWarning] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const initialViewSet = useRef(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -71,8 +73,14 @@ export default function TenderDetail() {
       }
       const json = await res.json();
       setTender(json);
-      if (json.ranking?.score != null) setFitScore(json.ranking.score);
-      else if (json.score != null) setFitScore(json.score);
+      const score = json.ranking?.score ?? json.score ?? null;
+      if (score != null) setFitScore(score);
+      const draftExists = (json.proposal_sections?.length ?? 0) > 0;
+      setHasDraft(draftExists);
+      if (!initialViewSet.current) {
+        initialViewSet.current = true;
+        if (draftExists || (score != null && score >= 75)) setView('draft');
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -287,15 +295,15 @@ export default function TenderDetail() {
         </div>
       )}
 
-      <main className="flex-1 px-8 pb-32">
-        <div className="mx-auto max-w-3xl">
+      <main className={`flex-1 px-8 ${view === 'fit-check' ? 'pb-32' : 'pb-8'}`}>
+        <div className={`mx-auto ${view === 'fit-check' ? 'max-w-3xl' : ''}`}>
           {loading ? (
             <p className="text-sm text-slate-500">Loading tender...</p>
           ) : error ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{error}</div>
           ) : tender ? (
             <>
-              {view === 'fit-check' && <TenderFitCheck tenderId={tender.id} refreshKey={refreshKey} />}
+              {view === 'fit-check' && <TenderFitCheck tenderId={tender.id} refreshKey={refreshKey} hasDraft={hasDraft} onGoToDraft={() => setView('draft')} />}
               {view === 'draft' && <TenderDraftWrapper tenderId={tender.id} />}
               {view === 'export' && <TenderExportWrapper tenderId={tender.id} />}
             </>
@@ -305,7 +313,7 @@ export default function TenderDetail() {
         </div>
       </main>
 
-      {tender && (
+      {tender && view === 'fit-check' && (
         <div className="fixed bottom-6 left-0 right-0 z-50 mx-auto w-full max-w-3xl px-8">
           <input
             ref={fileInputRef}

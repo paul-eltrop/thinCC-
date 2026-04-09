@@ -198,8 +198,8 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
 
   if (isGenerating) {
     return (
-      <div className="flex h-full flex-col rounded-3xl border border-white/60 bg-white/70 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between rounded-t-2xl border border-white/60 bg-white/80 px-5 py-2 backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <div className="size-3 rounded-full border-2 border-blue-200 border-t-blue-500 animate-spin" />
             <span className="text-xs font-medium text-slate-500">Generating proposal...</span>
@@ -219,74 +219,41 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
   }
 
   return (
-    <div ref={editorRef} className="relative flex h-full flex-col rounded-3xl border border-white/60 bg-white/70 shadow-[0_2px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl">
-      {/* Artifact Header Bar */}
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          {/* Preview / Code toggle */}
-          <div className="flex items-center gap-0.5 rounded-full border border-white/60 bg-white/50 p-0.5">
+    <div ref={editorRef} className="relative flex h-full flex-col bg-slate-100/50">
+      <div className="mx-auto flex w-[210mm] items-center justify-between rounded-t-2xl bg-slate-800 px-5 py-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-full bg-slate-700 p-0.5">
             <button
               onClick={() => { setViewMode('preview'); setEditingSection(null); }}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                viewMode === 'preview' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
+                viewMode === 'preview' ? 'bg-white text-slate-900' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                Preview
-              </span>
+              Preview
             </button>
             <button
               onClick={() => { setViewMode('code'); setEditingSection(null); }}
               className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                viewMode === 'code' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900'
+                viewMode === 'code' ? 'bg-white text-slate-900' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <span className="flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="16 18 22 12 16 6" />
-                  <polyline points="8 6 2 12 8 18" />
-                </svg>
-                Code
-              </span>
+              Code
             </button>
           </div>
-
-          <span className="text-xs font-medium text-slate-700 truncate max-w-[200px]">
-            Proposal Draft
-          </span>
-          <span className="text-[10px] text-slate-400">{sections.length} Sections</span>
+          <span className="text-xs font-medium text-white">Proposal Draft</span>
+          <span className="text-[10px] text-slate-400">{sections.length} sections</span>
         </div>
-
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
-            className="rounded-full px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            className="rounded-full px-3 py-1 text-[11px] font-medium text-slate-400 hover:text-white transition-colors"
           >
-            {copied ? (
-              <span className="flex items-center gap-1.5 text-emerald-600">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Copied
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                Copy
-              </span>
-            )}
+            {copied ? 'Copied!' : 'Copy'}
           </button>
           <button
             onClick={onRegenerate}
             disabled={!hasTender}
-            className="rounded-full p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-40 transition-colors"
+            className="rounded-full p-1.5 text-slate-400 hover:text-white disabled:opacity-40 transition-colors"
             title="Regenerate"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -296,7 +263,7 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
           </button>
           <button
             onClick={onClose}
-            className="rounded-full p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="rounded-full p-1.5 text-slate-400 hover:text-white transition-colors"
             title="Close"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -307,18 +274,17 @@ export function ProposalEditor({ sections, onSectionsChange, isGenerating, onReg
         </div>
       </div>
 
-      {/* Content Area */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto">
+      <div ref={contentRef} className="flex-1 overflow-y-auto py-2">
         {viewMode === 'code' ? (
-          <div className="p-6">
+          <div className="mx-auto w-[210mm] p-6">
             <textarea
               value={sectionsToMarkdown(sections)}
               onChange={(e) => onSectionsChange(markdownToSections(e.target.value, sections))}
-              className="w-full min-h-[500px] resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-relaxed text-slate-700 outline-none focus:border-blue-300"
+              className="w-full min-h-[500px] resize-none rounded-2xl border border-slate-200 bg-white p-4 font-mono text-xs leading-relaxed text-slate-700 outline-none focus:border-blue-300"
             />
           </div>
         ) : (
-          <div className="px-8 py-6 space-y-8" onMouseUp={handleMouseUp}>
+          <div className="mx-auto w-[210mm] min-h-[297mm] bg-white px-[25mm] py-[20mm] shadow-[0_2px_24px_rgba(15,23,42,0.08)] space-y-8" onMouseUp={handleMouseUp}>
             {sections.map((section, index) => (
               <div
                 key={section.id}
