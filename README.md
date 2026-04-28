@@ -144,5 +144,5 @@ Built in a five-person team at the Q-Summit × MLH Hackathon (Mannheim, April 20
 
 - **[Lasse Johannis](https://github.com/lassejohannis)** — production deploy on Vultr (Docker + Caddy + Let's Encrypt + same-origin routing), auth & RLS hardening (atomic backend signup with service role to bypass cookie-propagation race), share-link robustness (clipboard activation handling, error surfacing, brute-force-resistant link IDs), Gemini stream-init retry-with-backoff, backend native-libs for Docling at runtime
 - **[Paul Eltrop](https://github.com/paul-eltrop)** — tender card UI, share-from-draft flow, OpenAI/Gemini provider swaps, fit-check UI fixes
-- **[Jona Kösters](https://github.com/jonakoesters)** — scanner eval-model upgrade to Gemini 2.5 Pro, scrollable-questions + realtime knowledge-state UI, navbar + branding, share button on partial questions
+- **Jona Kösters** — scanner eval-model upgrade to Gemini 2.5 Pro, scrollable-questions + realtime knowledge-state UI, navbar + branding, share button on partial questions
 - **[Apostolos Konias](https://github.com/apostoloskonias)** — tender-card enrichment (deadline, filename, upload date)
